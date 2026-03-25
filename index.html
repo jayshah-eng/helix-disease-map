@@ -719,7 +719,7 @@ nodeEl.filter(d=>d.type==="hub").append("text")
 // TA labels — below node
 nodeEl.filter(d=>d.type==="ta").append("text")
   .text(d=>d.name).attr("text-anchor","middle").attr("dy",d=>nodeR(d)+13)
-  .attr("font-size","8.5px").attr("font-weight","800").attr("fill","#000").attr("pointer-events","none");
+  .attr("font-size","8.5px").attr("font-weight","800").attr("fill",d=>TA_COLOR[d.ta]||"#1C2B47").attr("pointer-events","none");
 
 // Specialty labels
 nodeEl.filter(d=>d.type==="specialty").append("text")
