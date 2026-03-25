@@ -735,7 +735,7 @@ function dnaPath(x1,y1,x2,y2,amp,wl,phase){
 }
 function renderDNA(l){
   const x1=l.source.x,y1=l.source.y,x2=l.target.x,y2=l.target.y;
-  const amp=l.type==="hub-ta"?5:l.type==="ta-spec"?4:3;
+  const amp=l.type==="hub-ta"?2:l.type==="ta-spec"?2:1;
   const wl=l.type==="hub-ta"?22:l.type==="ta-spec"?18:14;
   const cn=l.source.ta?l.source:l.target;
   const col=TA_COLOR[cn.ta]||"#9AA8BE";
