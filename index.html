@@ -769,17 +769,38 @@ nodeEl.filter(d=>d.type==="condition"&&d.count>0).append("text")
   .text(d=>fmt(d.count)).attr("text-anchor","middle").attr("dy","0.35em")
   .attr("font-size","6.5px").attr("font-weight","800").attr("fill","#fff").attr("pointer-events","none");
 
-// Condition name — radial (pointing outward like spokes, no overlap)
-nodeEl.filter(d=>d.type==="condition").append("text")
-  .text(d=>d.name.length>24?d.name.slice(0,22)+"…":d.name)
-  .attr("transform",d=>{
-    const a=d._angle||0, r=nodeR(d)+7;
-    const flip=Math.cos(a)<0;
-    return `translate(${r*Math.cos(a)},${r*Math.sin(a)}) rotate(${flip?a*180/Math.PI+180:a*180/Math.PI})`;
-  })
-  .attr("text-anchor",d=>Math.cos(d._angle||0)<0?"end":"start")
-  .attr("dy","0.35em")
-  .attr("font-size","7.5px").attr("font-weight","700").attr("fill","#1C2B47").attr("pointer-events","none").attr("class","cond-label");
+// Split name near midpoint for 2-line wrapping
+function splitName(name) {
+  if (name.length <= 26) return [name];
+  const words = name.split(' ');
+  if (words.length < 2) return [name];
+  let best = {idx:1, score:Infinity}; let cum = 0;
+  const half = name.length / 2;
+  for (let i = 0; i < words.length-1; i++) {
+    cum += words[i].length + 1;
+    const score = Math.abs(cum - half);
+    if (score < best.score) best = {idx: i+1, score};
+  }
+  return [words.slice(0, best.idx).join(' '), words.slice(best.idx).join(' ')];
+}
+
+// Condition name — radial, full name with 2-line wrap
+nodeEl.filter(d=>d.type==="condition").each(function(d) {
+  const a=d._angle||0, r=nodeR(d)+7;
+  const flip=Math.cos(a)<0, deg=a*180/Math.PI;
+  const lines = splitName(d.name);
+  const txt = d3.select(this).append("text")
+    .attr("transform",`translate(${r*Math.cos(a)},${r*Math.sin(a)}) rotate(${flip?deg+180:deg})`)
+    .attr("text-anchor",flip?"end":"start")
+    .attr("font-size","7.5px").attr("font-weight","700").attr("fill","#1C2B47")
+    .attr("pointer-events","none").attr("class","cond-label");
+  if (lines.length===1) {
+    txt.append("tspan").text(lines[0]).attr("x","0").attr("dy","0.35em");
+  } else {
+    txt.append("tspan").text(lines[0]).attr("x","0").attr("dy","-0.3em");
+    txt.append("tspan").text(lines[1]).attr("x","0").attr("dy","1.15em");
+  }
+});
 
 // Tooltip
 const tooltip = document.getElementById("tooltip");
@@ -863,9 +884,24 @@ function collapseTA(ta) {
   if(expandedTAs.size===0) zoomReset();
   else { const n=nodes.find(n=>n.id===`ta__${ta}`); if(n) zoomTo(n.x,n.y,1.8); }
 }
+function zoomToFitConds(sn) {
+  const conds = nodes.filter(c=>c.type==="condition"&&c.ta===sn.ta&&c.specialty===sn.name);
+  if (!conds.length) { zoomTo(sn.x, sn.y, 2.0); return; }
+  // Estimate label endpoints (radial direction, ~115px for a 26-char line at 7.5px font)
+  const labelLen = 120;
+  const pts = [{x:sn.x,y:sn.y}, ...conds.flatMap(c=>{
+    const a=c._angle||0, end=DR[3]+(nodeR(c)+7+labelLen);
+    return [{x:c.x,y:c.y},{x:W/2+end*Math.cos(a),y:H/2+end*Math.sin(a)}];
+  })];
+  const pad=50;
+  const minX=Math.min(...pts.map(p=>p.x))-pad, maxX=Math.max(...pts.map(p=>p.x))+pad;
+  const minY=Math.min(...pts.map(p=>p.y))-pad, maxY=Math.max(...pts.map(p=>p.y))+pad;
+  const scale=Math.min(W/(maxX-minX), H/(maxY-minY), 3.0);
+  zoomTo((minX+maxX)/2, (minY+maxY)/2, Math.max(scale, 0.7));
+}
 function expandSpec(sn) {
   expandedSpecs.add(sn.id); applyVis(true); updateStats();
-  zoomTo(sn.x, sn.y, 2.4);
+  zoomToFitConds(sn);
 }
 function collapseSpec(sn) {
   expandedSpecs.delete(sn.id); applyVis(true); updateStats();
