@@ -984,7 +984,7 @@ function updateBtns() {
 // Search — auto-expands matching branches
 document.getElementById("search-input").addEventListener("input",function(){
   const q=this.value.toLowerCase().trim();
-  if (!q) { applyVis(true); return; }
+  if (!q) { applyVis(true); zoomReset(); return; }
   const matchTAs=new Set(), matchSpecs=new Set(), matchIds=new Set();
   nodes.forEach(n=>{
     if (n.name.toLowerCase().includes(q)) {
@@ -1014,6 +1014,17 @@ document.getElementById("search-input").addEventListener("input",function(){
   linkEl.transition().duration(300)
     .attr("opacity",l=>!linkVis(l)?0:matchIds.has(l.source.id)&&matchIds.has(l.target.id)?0.5:0.04);
   updateStats();
+  // Zoom to matched nodes
+  const matchedNodes=nodes.filter(n=>n.name.toLowerCase().includes(q)&&isVis(n));
+  if (matchedNodes.length===1) {
+    zoomTo(matchedNodes[0].x, matchedNodes[0].y, 2.2);
+  } else if (matchedNodes.length>1) {
+    const pad=80;
+    const minX=Math.min(...matchedNodes.map(n=>n.x))-pad, maxX=Math.max(...matchedNodes.map(n=>n.x))+pad;
+    const minY=Math.min(...matchedNodes.map(n=>n.y))-pad, maxY=Math.max(...matchedNodes.map(n=>n.y))+pad;
+    const scale=Math.min(W/(maxX-minX), H/(maxY-minY), 3.0);
+    zoomTo((minX+maxX)/2, (minY+maxY)/2, Math.max(scale, 0.8));
+  }
 });
 
 function resetAll() {
