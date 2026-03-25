@@ -676,63 +676,8 @@ const chartEl = document.getElementById("chart");
 const W = chartEl.clientWidth || 780, H = chartEl.clientHeight || 780;
 const svg = d3.select("#chart").append("svg").attr("width",W).attr("height",H);
 
-// Background
+// Background (must be before g so it doesn't render on top of nodes)
 svg.append("rect").attr("width",W).attr("height",H).attr("fill","#FAFAF8");
-
-// ── DECORATIVE BACKGROUND: DNA helix + sphere ──────────────────────────
-(()=>{
-  const defs = svg.append("defs");
-  // Sphere radial gradient
-  const sg = defs.append("radialGradient").attr("id","sph-grad").attr("cx","36%").attr("cy","28%").attr("r","65%");
-  sg.append("stop").attr("offset","0%").attr("stop-color","#fff").attr("stop-opacity","0.95");
-  sg.append("stop").attr("offset","45%").attr("stop-color","#4A8B5C").attr("stop-opacity","0.75");
-  sg.append("stop").attr("offset","100%").attr("stop-color","#1C2B47").attr("stop-opacity","0.9");
-  // Sphere inner glow
-  const sg2 = defs.append("radialGradient").attr("id","sph-rim").attr("cx","50%").attr("cy","50%").attr("r","50%");
-  sg2.append("stop").attr("offset","70%").attr("stop-color","transparent");
-  sg2.append("stop").attr("offset","100%").attr("stop-color","#1C2B47").attr("stop-opacity","0.35");
-
-  const bg = svg.append("g").attr("pointer-events","none").attr("opacity","0.13");
-
-  // ── Sphere (bottom-right) ──
-  const sx = W - 95, sy = H - 95, sr = 88;
-  bg.append("circle").attr("cx",sx).attr("cy",sy).attr("r",sr).attr("fill","url(#sph-grad)");
-  bg.append("circle").attr("cx",sx).attr("cy",sy).attr("r",sr).attr("fill","url(#sph-rim)");
-  // Equator ellipse
-  bg.append("ellipse").attr("cx",sx).attr("cy",sy).attr("rx",sr).attr("ry",sr*0.28)
-    .attr("fill","none").attr("stroke","rgba(255,255,255,0.35)").attr("stroke-width","1.2");
-  // Latitude arc (top)
-  bg.append("ellipse").attr("cx",sx).attr("cy",sy-sr*0.5).attr("rx",sr*0.87).attr("ry",sr*0.22)
-    .attr("fill","none").attr("stroke","rgba(255,255,255,0.2)").attr("stroke-width","0.8");
-
-  // ── DNA double helix (top-left, vertical) ──
-  const dnaCx=90, dnaTop=20, dnaBot=H-20, dnaPeriod=110, dnaAmp=34;
-  let p1="", p2="";
-  const STEPS=300;
-  for(let i=0;i<=STEPS;i++){
-    const y=dnaTop+(i/STEPS)*(dnaBot-dnaTop);
-    const a=(y-dnaTop)/dnaPeriod*2*Math.PI;
-    const x1=dnaCx+dnaAmp*Math.sin(a), x2=dnaCx-dnaAmp*Math.sin(a);
-    p1+=(i===0?`M${x1},${y}`:`L${x1},${y}`);
-    p2+=(i===0?`M${x2},${y}`:`L${x2},${y}`);
-  }
-  bg.append("path").attr("d",p1).attr("fill","none").attr("stroke","#2B65B5").attr("stroke-width","2.2").attr("stroke-opacity","0.7");
-  bg.append("path").attr("d",p2).attr("fill","none").attr("stroke","#27784A").attr("stroke-width","2.2").attr("stroke-opacity","0.7");
-
-  // Rungs
-  for(let y=dnaTop+dnaPeriod*0.12; y<dnaBot; y+=dnaPeriod/4.5){
-    const a=(y-dnaTop)/dnaPeriod*2*Math.PI;
-    const x1=dnaCx+dnaAmp*Math.sin(a), x2=dnaCx-dnaAmp*Math.sin(a);
-    const depth=Math.abs(Math.cos(a));
-    bg.append("line")
-      .attr("x1",x1).attr("y1",y).attr("x2",x2).attr("y2",y)
-      .attr("stroke","#1C2B47").attr("stroke-width",0.7+1.1*depth)
-      .attr("stroke-opacity",0.25+0.45*depth);
-    // Rung end dots for depth
-    bg.append("circle").attr("cx",x1).attr("cy",y).attr("r",1.8).attr("fill","#2B65B5").attr("opacity",0.4+0.4*depth);
-    bg.append("circle").attr("cx",x2).attr("cy",y).attr("r",1.8).attr("fill","#27784A").attr("opacity",0.4+0.4*depth);
-  }
-})();
 
 const g = svg.append("g");
 
