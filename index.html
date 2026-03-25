@@ -720,14 +720,50 @@ const hubNd=nodes.find(n=>n.type==="hub"); hubNd.x=W/2; hubNd.y=H/2;
 // Resolve link source/target string refs to objects
 links.forEach(l=>{ l.source=nodes.find(n=>n.id===l.source)||l.source; l.target=nodes.find(n=>n.id===l.target)||l.target; });
 
-// Links
-const linkEl = g.append("g").selectAll("line").data(links).join("line")
-  .attr("stroke",l=>{
-    const s=typeof l.source==="object"?l.source:nodes.find(n=>n.id===l.source);
-    return s?(TA_COLOR[s.ta]||"#9AA8BE"):"#9AA8BE";
-  })
-  .attr("stroke-opacity",l=>l.type==="hub-ta"?0.6:l.type==="ta-spec"?0.4:0.25)
-  .attr("stroke-width",l=>l.type==="hub-ta"?2.5:l.type==="ta-spec"?1.8:1.2);
+// DNA strand helpers
+function dnaPath(x1,y1,x2,y2,amp,wl,phase){
+  const dx=x2-x1,dy=y2-y1,L=Math.sqrt(dx*dx+dy*dy);
+  if(L<1)return'M0,0';
+  const ux=dx/L,uy=dy/L,px=-uy,py=ux;
+  const steps=Math.max(20,Math.ceil(L/3));
+  const pts=[];
+  for(let i=0;i<=steps;i++){
+    const t=i/steps,a=t*L,p=amp*Math.sin(2*Math.PI*a/wl+phase);
+    pts.push((x1+a*ux+p*px).toFixed(1)+','+(y1+a*uy+p*py).toFixed(1));
+  }
+  return'M'+pts.join('L');
+}
+function renderDNA(l){
+  const x1=l.source.x,y1=l.source.y,x2=l.target.x,y2=l.target.y;
+  const amp=l.type==="hub-ta"?5:l.type==="ta-spec"?4:3;
+  const wl=l.type==="hub-ta"?22:l.type==="ta-spec"?18:14;
+  const cn=l.source.ta?l.source:l.target;
+  const col=TA_COLOR[cn.ta]||"#9AA8BE";
+  const sw=l.type==="hub-ta"?1.5:l.type==="ta-spec"?1.1:0.9;
+  const grp=d3.select(l._grp);
+  grp.select(".ds1").attr("d",dnaPath(x1,y1,x2,y2,amp,wl,0)).attr("stroke",col).attr("stroke-width",sw);
+  grp.select(".ds2").attr("d",dnaPath(x1,y1,x2,y2,amp,wl,Math.PI)).attr("stroke",col).attr("stroke-width",sw);
+  const dx=x2-x1,dy=y2-y1,L=Math.sqrt(dx*dx+dy*dy);
+  if(L<1)return;
+  const ux=dx/L,uy=dy/L,px=-uy,py=ux;
+  const rungs=[];
+  for(let a=wl*0.25;a<L-wl*0.1;a+=wl*0.5){
+    const ph=2*Math.PI*a/wl,p1=amp*Math.sin(ph);
+    rungs.push({x1:x1+a*ux+p1*px,y1:y1+a*uy+p1*py,x2:x1+a*ux-p1*px,y2:y1+a*uy-p1*py});
+  }
+  grp.select(".drg").selectAll("line").data(rungs).join("line")
+    .attr("x1",r=>r.x1).attr("y1",r=>r.y1).attr("x2",r=>r.x2).attr("y2",r=>r.y2)
+    .attr("stroke",col).attr("stroke-width",sw*0.65).attr("stroke-opacity",0.55);
+}
+// Links — rendered as DNA double-helix strands
+const linkEl=g.append("g").selectAll("g").data(links).join("g")
+  .each(function(l){
+    l._grp=this;
+    d3.select(this).append("path").attr("class","ds1").attr("fill","none");
+    d3.select(this).append("path").attr("class","ds2").attr("fill","none");
+    d3.select(this).append("g").attr("class","drg");
+    renderDNA(l);
+  });
 
 // Nodes (static — no drag)
 const nodeEl = g.append("g").selectAll("g").data(nodes).join("g")
@@ -865,7 +901,7 @@ function applyVis(animated) {
     .attr("opacity",d=>isVis(d)?1:0)
     .style("pointer-events",d=>isVis(d)?"all":"none");
   (animated?linkEl.transition().duration(380):linkEl)
-    .attr("stroke-opacity",l=>linkVis(l)?(l.type==="hub-ta"?0.6:l.type==="ta-spec"?0.4:0.25):0);
+    .attr("opacity",l=>linkVis(l)?(l.type==="hub-ta"?0.6:l.type==="ta-spec"?0.4:0.25):0);
 }
 applyVis(false);
 
@@ -976,7 +1012,7 @@ document.getElementById("search-input").addEventListener("input",function(){
     .attr("opacity",n=>!isVis(n)?0:matchIds.has(n.id)?1:0.12)
     .style("pointer-events",d=>isVis(d)?"all":"none");
   linkEl.transition().duration(300)
-    .attr("stroke-opacity",l=>!linkVis(l)?0:matchIds.has(l.source.id)&&matchIds.has(l.target.id)?0.5:0.04);
+    .attr("opacity",l=>!linkVis(l)?0:matchIds.has(l.source.id)&&matchIds.has(l.target.id)?0.5:0.04);
   updateStats();
 });
 
@@ -995,7 +1031,6 @@ function updateStats() {
 updateStats();
 
 // Static render — positions never change
-linkEl.attr("x1",l=>l.source.x).attr("y1",l=>l.source.y).attr("x2",l=>l.target.x).attr("y2",l=>l.target.y);
 nodeEl.attr("transform",d=>`translate(${d.x},${d.y})`);
 const initTransform = d3.zoomIdentity.translate(W/2*(1-1.3), H/2*(1-1.3)).scale(1.3);
 setTimeout(()=>{ svg.call(zoom.transform, initTransform); }, 200);
