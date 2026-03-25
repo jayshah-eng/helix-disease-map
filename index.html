@@ -981,7 +981,7 @@ function updateBtns() {
   });
 }
 
-// Search — auto-expands matching branches
+// Search — auto-expands and zooms to matching nodes
 document.getElementById("search-input").addEventListener("input",function(){
   const q=this.value.toLowerCase().trim();
   if (!q) { applyVis(true); zoomReset(); return; }
@@ -994,19 +994,9 @@ document.getElementById("search-input").addEventListener("input",function(){
       if (n.type==="ta") { matchTAs.add(n.ta); matchIds.add("hub"); }
     }
   });
-  matchTAs.forEach(ta=>{
-    if (!expandedTAs.has(ta)) {
-      const taNode=nodes.find(n=>n.id===`ta__${ta}`);
-      nodes.filter(n=>n.type==="specialty"&&n.ta===ta).forEach(n=>{ n.x=taNode?taNode.x:W/2; n.y=taNode?taNode.y:H/2; n.fx=null; n.fy=null; });
-      expandedTAs.add(ta);
-    }
-  });
-  matchSpecs.forEach(sid=>{
-    if (!expandedSpecs.has(sid)) {
-      const sn=nodes.find(n=>n.id===sid);
-      if (sn) { nodes.filter(c=>c.type==="condition"&&c.ta===sn.ta&&c.specialty===sn.name).forEach(c=>{c.x=sn.x;c.y=sn.y;c.fx=null;c.fy=null;}); expandedSpecs.add(sid); }
-    }
-  });
+  // Expand branches without touching static node positions
+  matchTAs.forEach(ta=>expandedTAs.add(ta));
+  matchSpecs.forEach(sid=>expandedSpecs.add(sid));
   updateBtns();
   nodeEl.transition().duration(300)
     .attr("opacity",n=>!isVis(n)?0:matchIds.has(n.id)?1:0.12)
@@ -1014,17 +1004,14 @@ document.getElementById("search-input").addEventListener("input",function(){
   linkEl.transition().duration(300)
     .attr("opacity",l=>!linkVis(l)?0:matchIds.has(l.source.id)&&matchIds.has(l.target.id)?0.5:0.04);
   updateStats();
-  // Zoom to matched nodes
-  const matchedNodes=nodes.filter(n=>n.name.toLowerCase().includes(q)&&isVis(n));
-  if (matchedNodes.length===1) {
-    zoomTo(matchedNodes[0].x, matchedNodes[0].y, 2.2);
-  } else if (matchedNodes.length>1) {
-    const pad=80;
-    const minX=Math.min(...matchedNodes.map(n=>n.x))-pad, maxX=Math.max(...matchedNodes.map(n=>n.x))+pad;
-    const minY=Math.min(...matchedNodes.map(n=>n.y))-pad, maxY=Math.max(...matchedNodes.map(n=>n.y))+pad;
-    const scale=Math.min(W/(maxX-minX), H/(maxY-minY), 3.0);
-    zoomTo((minX+maxX)/2, (minY+maxY)/2, Math.max(scale, 0.8));
-  }
+  // Zoom: condition matches → go to highest-count one; TA/specialty → go to that node
+  const directMatches=nodes.filter(n=>n.name.toLowerCase().includes(q)&&isVis(n));
+  if (!directMatches.length) return;
+  const condMatches=directMatches.filter(n=>n.type==="condition");
+  const target=condMatches.length
+    ? condMatches.reduce((best,n)=>(n.count||0)>(best.count||0)?n:best, condMatches[0])
+    : directMatches[0];
+  zoomTo(target.x, target.y, 2.2);
 });
 
 function resetAll() {
