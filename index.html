@@ -997,7 +997,7 @@ updateStats();
 // Static render — positions never change
 linkEl.attr("x1",l=>l.source.x).attr("y1",l=>l.source.y).attr("x2",l=>l.target.x).attr("y2",l=>l.target.y);
 nodeEl.attr("transform",d=>`translate(${d.x},${d.y})`);
-const initTransform = d3.zoomIdentity.translate(W/2*(1-0.72), H/2*(1-0.72)).scale(0.72);
+const initTransform = d3.zoomIdentity.translate(W/2*(1-1.1), H/2*(1-1.1)).scale(1.1);
 setTimeout(()=>{ svg.call(zoom.transform, initTransform); }, 200);
 
 document.getElementById("zoom-in").onclick    = ()=>svg.transition().duration(300).call(zoom.scaleBy, 1.4);
