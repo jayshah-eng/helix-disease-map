@@ -769,10 +769,16 @@ nodeEl.filter(d=>d.type==="condition"&&d.count>0).append("text")
   .text(d=>fmt(d.count)).attr("text-anchor","middle").attr("dy","0.35em")
   .attr("font-size","6.5px").attr("font-weight","800").attr("fill","#fff").attr("pointer-events","none");
 
-// Condition name below
+// Condition name — radial (pointing outward like spokes, no overlap)
 nodeEl.filter(d=>d.type==="condition").append("text")
-  .text(d=>d.name.length>22?d.name.slice(0,20)+"…":d.name)
-  .attr("text-anchor","middle").attr("dy",d=>nodeR(d)+11)
+  .text(d=>d.name.length>24?d.name.slice(0,22)+"…":d.name)
+  .attr("transform",d=>{
+    const a=d._angle||0, r=nodeR(d)+7;
+    const flip=Math.cos(a)<0;
+    return `translate(${r*Math.cos(a)},${r*Math.sin(a)}) rotate(${flip?a*180/Math.PI+180:a*180/Math.PI})`;
+  })
+  .attr("text-anchor",d=>Math.cos(d._angle||0)<0?"end":"start")
+  .attr("dy","0.35em")
   .attr("font-size","7.5px").attr("font-weight","700").attr("fill","#1C2B47").attr("pointer-events","none").attr("class","cond-label");
 
 // Tooltip
