@@ -650,15 +650,16 @@ function fmt(n) {
 }
 
 const chartEl = document.getElementById("chart");
-const W = chartEl.clientWidth, H = chartEl.clientHeight;
-const svg = d3.select("#chart").append("svg");
-const g   = svg.append("g");
+const W = chartEl.clientWidth || 780, H = chartEl.clientHeight || 780;
+const svg = d3.select("#chart").append("svg").attr("width",W).attr("height",H);
 
-// Background
-svg.append("rect").attr("width","100%").attr("height","100%").attr("fill","#FAFAF8");
+// Background (must be before g so it doesn't render on top of nodes)
+svg.append("rect").attr("width",W).attr("height",H).attr("fill","#FAFAF8");
+
+const g = svg.append("g");
 
 const zoom = d3.zoom().scaleExtent([0.2,4]).on("zoom",e=>g.attr("transform",e.transform));
-svg.call(zoom).call(zoom.translateTo,W/2,H/2);
+svg.call(zoom);
 
 // Subtle grid
 const gridG = g.append("g").attr("opacity","0.03");
@@ -871,7 +872,9 @@ simulation.on("tick",()=>{
   linkEl.attr("x1",l=>l.source.x).attr("y1",l=>l.source.y).attr("x2",l=>l.target.x).attr("y2",l=>l.target.y);
   nodeEl.attr("transform",d=>`translate(${d.x},${d.y})`);
 });
-setTimeout(()=>svg.call(zoom.transform,d3.zoomIdentity.translate(W/2,H/2).scale(0.88)),120);
+setTimeout(()=>{
+  svg.call(zoom.transform,d3.zoomIdentity.translate(W/2-(W*0.88/2),H/2-(H*0.88/2)).scale(0.88));
+},200);
 </script>
 </body>
 </html>
