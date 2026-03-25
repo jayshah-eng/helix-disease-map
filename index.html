@@ -193,6 +193,15 @@ nav {
 }
 #search-input:focus { border-color: var(--green); background: #fff; }
 #search-input::placeholder { color: var(--muted); }
+#match-nav { display:none; align-items:center; gap:3px; }
+#match-nav button {
+  background:transparent; border:1.5px solid var(--border); border-radius:5px;
+  color:var(--navy); font-size:14px; font-weight:700; cursor:pointer;
+  width:24px; height:26px; display:flex; align-items:center; justify-content:center;
+  font-family:inherit; transition:all 0.15s; padding:0; line-height:1;
+}
+#match-nav button:hover { border-color:var(--navy); background:var(--navy); color:#fff; }
+#match-label { font-size:11px; color:var(--muted); white-space:nowrap; font-weight:500; min-width:44px; text-align:center; }
 .btn-reset {
   padding: 6px 14px; background: transparent; color: var(--muted);
   border: 1.5px solid var(--border); border-radius: 7px; font-size: 12px;
@@ -491,6 +500,11 @@ footer {
     <div class="ta-filters" id="ta-filters"></div>
     <div class="search-wrap">
       <input type="text" id="search-input" placeholder="Search conditions…">
+      <div id="match-nav">
+        <button id="match-prev">&#8249;</button>
+        <span id="match-label">1 of 1</span>
+        <button id="match-next">&#8250;</button>
+      </div>
       <button class="btn-reset" onclick="resetAll()">Reset</button>
     </div>
   </div>
@@ -981,10 +995,25 @@ function updateBtns() {
   });
 }
 
+// Multi-match cycle state
+let matchCycle=[], matchIdx=0;
+function showMatchNav() {
+  const nav=document.getElementById("match-nav");
+  nav.style.display=matchCycle.length>1?"flex":"none";
+  document.getElementById("match-label").textContent=`${matchIdx+1} of ${matchCycle.length}`;
+}
+function goToMatch(idx) {
+  matchIdx=(idx+matchCycle.length)%matchCycle.length;
+  zoomTo(matchCycle[matchIdx].x, matchCycle[matchIdx].y, 2.2);
+  showMatchNav();
+}
+document.getElementById("match-prev").onclick=()=>goToMatch(matchIdx-1);
+document.getElementById("match-next").onclick=()=>goToMatch(matchIdx+1);
+
 // Search — auto-expands and zooms to matching nodes
 document.getElementById("search-input").addEventListener("input",function(){
   const q=this.value.toLowerCase().trim();
-  if (!q) { applyVis(true); zoomReset(); return; }
+  if (!q) { applyVis(true); zoomReset(); matchCycle=[]; document.getElementById("match-nav").style.display="none"; return; }
   const matchTAs=new Set(), matchSpecs=new Set(), matchIds=new Set();
   nodes.forEach(n=>{
     // Match against name; also check fullName for TA nodes (short name vs full name)
@@ -1006,14 +1035,14 @@ document.getElementById("search-input").addEventListener("input",function(){
   linkEl.transition().duration(300)
     .attr("opacity",l=>!linkVis(l)?0:matchIds.has(l.source.id)&&matchIds.has(l.target.id)?0.5:0.04);
   updateStats();
-  // Zoom: condition matches → go to highest-count one; TA/specialty → go to that node
+  // Build match cycle: conditions sorted by count desc, fall back to TA/specialty
   const directMatches=nodes.filter(n=>(n.name+(n.fullName?(' '+n.fullName):'')).toLowerCase().includes(q)&&isVis(n));
-  if (!directMatches.length) return;
-  const condMatches=directMatches.filter(n=>n.type==="condition");
-  const target=condMatches.length
-    ? condMatches.reduce((best,n)=>(n.count||0)>(best.count||0)?n:best, condMatches[0])
-    : directMatches[0];
-  zoomTo(target.x, target.y, 2.2);
+  if (!directMatches.length) { matchCycle=[]; document.getElementById("match-nav").style.display="none"; return; }
+  const condMatches=directMatches.filter(n=>n.type==="condition").sort((a,b)=>(b.count||0)-(a.count||0));
+  matchCycle=condMatches.length?condMatches:directMatches;
+  matchIdx=0;
+  showMatchNav();
+  zoomTo(matchCycle[0].x, matchCycle[0].y, 2.2);
 });
 
 function resetAll() {
@@ -1021,6 +1050,7 @@ function resetAll() {
   expandedTAs.clear(); expandedSpecs.clear();
   applyVis(true); updateBtns(); updateStats(); zoomReset();
   document.getElementById("search-input").value="";
+  matchCycle=[]; document.getElementById("match-nav").style.display="none";
 }
 function updateStats() {
   const total=nodes.filter(n=>n.type==="condition").length;
