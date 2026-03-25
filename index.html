@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GenoSphere™ Disease Landscape | Helix</title>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<style>
+  :root {
+    --navy:  #1A2B4A; --green: #3DBF84; --bg: #0F1A2E;
+    --card:  rgba(255,255,255,0.04); --border: rgba(255,255,255,0.08);
+    --text:  #E8EEF8; --muted: #6B85B0;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', Calibri, Arial, sans-serif; overflow: hidden; height: 100vh; }
+
+  header {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: rgba(15,26,46,0.96); border-bottom: 1px solid var(--border);
+    backdrop-filter: blur(10px); padding: 0 20px; height: 52px;
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  }
+  .logo { display: flex; align-items: center; gap: 9px; flex-shrink: 0; }
+  .logo-mark { width: 26px; height: 26px; background: var(--green); border-radius: 5px;
+    display: flex; align-items: center; justify-content: center; font-weight: 900; color: var(--navy); font-size: 13px; }
+  .logo-text { font-size: 14px; font-weight: 700; color: #fff; }
+  .logo-sub  { color: var(--green); font-size: 11px; margin-left: 3px; }
+
+  .header-center { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+  .ta-btn {
+    padding: 4px 12px; border-radius: 20px; border: 1.5px solid; cursor: pointer;
+    font-size: 11px; font-weight: 700; transition: all 0.18s; white-space: nowrap;
+    background: transparent; letter-spacing: 0.2px;
+  }
+  .ta-btn.active { color: #fff; }
+  .ta-btn.dimmed { opacity: 0.35; }
+
+  .header-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  #search-input {
+    background: rgba(255,255,255,0.07); border: 1px solid var(--border); border-radius: 7px;
+    padding: 5px 12px; color: #fff; font-size: 12px; outline: none; width: 180px;
+    font-family: inherit; transition: border-color 0.15s;
+  }
+  #search-input:focus { border-color: var(--green); }
+  #search-input::placeholder { color: var(--muted); }
+
+  .btn-reset { padding: 5px 12px; background: rgba(61,191,132,0.15); color: var(--green);
+    border: 1px solid rgba(61,191,132,0.3); border-radius: 7px; font-size: 11px;
+    font-weight: 700; cursor: pointer; transition: all 0.15s; }
+  .btn-reset:hover { background: rgba(61,191,132,0.25); }
+
+  #chart { position: fixed; top: 52px; left: 0; right: 0; bottom: 0; }
+  svg { width: 100%; height: 100%; }
+
+  /* Tooltip */
+  .tooltip {
+    position: fixed; pointer-events: none; z-index: 200;
+    background: rgba(15,26,46,0.97); border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 10px; padding: 12px 15px; max-width: 280px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5); backdrop-filter: blur(8px);
+    display: none;
+  }
+  .tt-area { font-size: 9px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 4px; }
+  .tt-spec { font-size: 10px; color: var(--muted); margin-bottom: 4px; }
+  .tt-name { font-size: 13px; font-weight: 700; color: #fff; line-height: 1.35; margin-bottom: 8px; }
+  .tt-count { font-size: 22px; font-weight: 800; line-height: 1; }
+  .tt-label { font-size: 10px; color: var(--muted); margin-top: 2px; }
+  .tt-bar-wrap { background: rgba(255,255,255,0.06); border-radius: 3px; height: 5px; margin-top: 8px; overflow: hidden; }
+  .tt-bar { height: 100%; border-radius: 3px; }
+
+  /* Legend */
+  .legend {
+    position: fixed; bottom: 18px; left: 20px; z-index: 100;
+    background: rgba(15,26,46,0.85); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 14px; backdrop-filter: blur(8px);
+  }
+  .legend-title { font-size: 9px; font-weight: 700; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 8px; }
+  .legend-row { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; }
+  .legend-circle { border-radius: 50%; flex-shrink: 0; }
+  .legend-text { font-size: 10px; color: var(--muted); }
+
+  /* Stats */
+  .stats-panel {
+    position: fixed; bottom: 18px; right: 20px; z-index: 100;
+    background: rgba(15,26,46,0.85); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 14px; backdrop-filter: blur(8px);
+    text-align: right;
+  }
+  .stat-row { margin-bottom: 3px; }
+  .stat-n { font-size: 16px; font-weight: 800; }
+  .stat-l { font-size: 10px; color: var(--muted); margin-left: 4px; }
+
+  .hint { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+    font-size: 10px; color: var(--muted); pointer-events: none; z-index: 100;
+    background: rgba(15,26,46,0.7); padding: 4px 12px; border-radius: 20px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-mark">H</div>
+    <span class="logo-text">GenoSphere™ <span class="logo-sub">Disease Landscape</span></span>
+  </div>
+  <div class="header-center" id="ta-filters"></div>
+  <div class="header-right">
+    <input type="text" id="search-input" placeholder="Search conditions…">
+    <button class="btn-reset" onclick="resetAll()">Reset</button>
+  </div>
+</header>
+
+<div id="chart"></div>
+<div class="tooltip" id="tooltip"></div>
+
+<div class="legend">
+  <div class="legend-title">Node Size = Patient Count</div>
+  <div class="legend-row"><div class="legend-circle" style="width:8px;height:8px;background:#6B85B0"></div><div class="legend-text">&lt; 1,000</div></div>
+  <div class="legend-row"><div class="legend-circle" style="width:12px;height:12px;background:#6B85B0"></div><div class="legend-text">1,000 – 10,000</div></div>
+  <div class="legend-row"><div class="legend-circle" style="width:17px;height:17px;background:#6B85B0"></div><div class="legend-text">10,000 – 50,000</div></div>
+  <div class="legend-row"><div class="legend-circle" style="width:22px;height:22px;background:#6B85B0"></div><div class="legend-text">&gt; 50,000</div></div>
+  <div class="legend-title" style="margin-top:10px">Rings</div>
+  <div class="legend-row"><div class="legend-circle" style="width:10px;height:10px;background:#fff;opacity:0.7"></div><div class="legend-text">Therapeutic Area</div></div>
+  <div class="legend-row"><div class="legend-circle" style="width:10px;height:10px;background:#fff;opacity:0.4;border:1.5px solid #6B85B0"></div><div class="legend-text">Specialty</div></div>
+  <div class="legend-row"><div class="legend-circle" style="width:10px;height:10px;background:#3DBF84"></div><div class="legend-text">Condition</div></div>
+</div>
+
+<div class="stats-panel" id="stats-panel"></div>
+<div class="hint">Scroll to zoom · Drag to pan · Click to highlight · Hover for details</div>
+
+<script>
+// ── DATA ─────────────────────────────────────────────────────────────────────
+const RAW = [
+  ["Cardiovascular, Renal & Metabolic (CVRM)","Cardio","Hypertension",116291],
+  ["Cardiovascular, Renal & Metabolic (CVRM)","Cardio","Arrhythmias",45457],
+  ["Cardiovascular, Renal & Metabolic (CVRM)","Cardio","Thrombosis",14465],
+  ["Cardiovascular, Renal & Metabolic (CVRM)","Cardio","Heart Failure (HFpEF/HFrEF)",11039],
+  ["Cardiovascular, Renal & Metabolic (CVRM)","Cardio","ASCVD",8629],
+  ["Cardiovascular, Renal & Metabolic (CVRM)","Cardio","Secondary Dilated Cardiomyopathy",2019],
+  ["Cardiovascular, Renal & Metabolic (CVRM)","Cardio","Primary Dilated Cardiomyopathy",1329],
+  ["Cardiovascular, Renal & Metabolic (CVRM)","Cardio","Hypertrophic Cardiomyopathy",674],
+  ["Cardiovascular, Renal & Metabolic (CVRM)","Cardio","Amyloidosis",385],
+  ["Cardiovascular, Renal & Metabolic (CVRM)","Metabolic","Obesity",105912],
+  ["Cardiovascular, Renal & Metabolic (CVRM)","Metabolic","Dyslipidemia",91002],
+  ["Cardiovascular, Renal & Metabolic (CVRM)","Metabolic","Type 2 Diabetes (T2DM)",48986],
+  ["Cardiovascular, Renal & Metabolic (CVRM)","Metabolic","Type 1 Diabetes (T1DM)",3684],
+  ["Cardiovascular, Renal & Metabolic (CVRM)","Metabolic","NAFLD",3023],
+  ["Cardiovascular, Renal & Metabolic (CVRM)","Metabolic","NASH",2549],
+  ["Cardiovascular, Renal & Metabolic (CVRM)","Renal","Chronic Kidney Disease (CKD)",20281],
+  ["Cardiovascular, Renal & Metabolic (CVRM)","Renal","Acute Kidney Injury (AKI)",12134],
+  ["Cardiovascular, Renal & Metabolic (CVRM)","Renal","Lupus Nephritis",216],
+  ["Cardiovascular, Renal & Metabolic (CVRM)","Renal","IgA Nephropathy (IgAN)",160],
+  ["Hematology (Non-Malignant)","Hematology","Immune Thrombocytopenic Purpura (ITP)",2370],
+  ["Hematology (Non-Malignant)","Hematology","Thalassemias",816],
+  ["Hematology (Non-Malignant)","Hematology","Sickle Cell Disease",483],
+  ["Hematology (Non-Malignant)","Hematology","Myelodysplastic Syndromes (MDS)",292],
+  ["Hematology (Non-Malignant)","Hematology","Aplastic Anemia",157],
+  ["Hematology (Non-Malignant)","Hematology","Hemophilia & Bleeding Disorders",144],
+  ["Hematology (Non-Malignant)","Hematology","Congenital Dyserythropoietic Anemia",13],
+  ["Hematology (Non-Malignant)","Hematology","Pyruvate Kinase Deficiency",4],
+  ["Inflammation / Autoimmune / MSK","Dermatology","Psoriasis",9053],
+  ["Inflammation / Autoimmune / MSK","Dermatology","Atopic Dermatitis (Eczema)",7315],
+  ["Inflammation / Autoimmune / MSK","Gastroenterology","Eosinophilic Esophagitis (EoE)",4971],
+  ["Inflammation / Autoimmune / MSK","Gastroenterology","Ulcerative Colitis (UC)",3142],
+  ["Inflammation / Autoimmune / MSK","Gastroenterology","Celiac Disease",3031],
+  ["Inflammation / Autoimmune / MSK","Gastroenterology","Crohn's Disease",2683],
+  ["Inflammation / Autoimmune / MSK","Rheumatology","Gout",9099],
+  ["Inflammation / Autoimmune / MSK","Rheumatology","Rheumatoid Arthritis (RA)",7306],
+  ["Inflammation / Autoimmune / MSK","Rheumatology","Vasculitis",6865],
+  ["Inflammation / Autoimmune / MSK","Rheumatology","Sjögren's Syndrome",3662],
+  ["Inflammation / Autoimmune / MSK","Rheumatology","Systemic Lupus Erythematosus (SLE)",2630],
+  ["Inflammation / Autoimmune / MSK","Rheumatology","Psoriatic Arthritis (PsA)",2574],
+  ["Inflammation / Autoimmune / MSK","Rheumatology","Ankylosing Spondylitis (AS)",1236],
+  ["Inflammation / Autoimmune / MSK","Rheumatology","Lupus Nephritis (LN)",216],
+  ["Neuroscience","Neurodegeneration","Multiple Sclerosis (MS)",2571],
+  ["Neuroscience","Neurodegeneration","Dementia",2298],
+  ["Neuroscience","Neurodegeneration","Parkinson's Disease",1210],
+  ["Neuroscience","Neurodegeneration","Alzheimer's Disease",334],
+  ["Neuroscience","Neurodegeneration","ALS",80],
+  ["Neuroscience","Neurodegeneration","Huntington's Disease",30],
+  ["Neuroscience","Neurodegeneration","X-linked Muscular Dystrophy",15],
+  ["Neuroscience","Neurodegeneration","Spinal Muscular Atrophy (SMA)",0],
+  ["Neuroscience","Psychiatry","Anxiety Disorders",120986],
+  ["Neuroscience","Psychiatry","Major Depressive Disorder (MDD)",68108],
+  ["Neuroscience","Psychiatry","Insomnia",60186],
+  ["Neuroscience","Psychiatry","Substance Use Disorders",55730],
+  ["Neuroscience","Psychiatry","ADHD",22479],
+  ["Neuroscience","Psychiatry","Bipolar Disorder",10423],
+  ["Neuroscience","Psychiatry","Narcolepsy",1512],
+  ["Neuroscience","Psychiatry","Schizophrenia",566],
+  ["Neuroscience","Sensory","Migraine",53033],
+  ["Neuroscience","Sensory","Epilepsy",4782],
+  ["Ophthalmology","Ophthalmology","Dry Eye Disease (DED)",16091],
+  ["Ophthalmology","Ophthalmology","Glaucoma",5667],
+  ["Ophthalmology","Ophthalmology","Age-related Macular Degeneration (AMD)",2839],
+  ["Ophthalmology","Ophthalmology","Uveitis (non-infectious)",1922],
+  ["Ophthalmology","Ophthalmology","Diabetic Retinopathy (DR)",679],
+  ["Ophthalmology","Ophthalmology","Retinal Vein Occlusion (RVO)",529],
+  ["Ophthalmology","Ophthalmology","Inherited Retinal Diseases",108],
+  ["Ophthalmology","Ophthalmology","Diabetic Macular Edema (DME)",65],
+  ["Respiratory","Respiratory","Asthma",53803],
+  ["Respiratory","Respiratory","COPD",14145],
+  ["Respiratory","Respiratory","Pulmonary Arterial Hypertension (PAH)",3940],
+  ["Respiratory","Respiratory","ARDS",245],
+  ["Respiratory","Respiratory","Idiopathic Pulmonary Fibrosis (IPF)",240],
+  ["Respiratory","Respiratory","Cystic Fibrosis (CF)",224],
+  ["Respiratory","Respiratory","Progressive Fibrosing ILD",8],
+];
+
+const TA_SHORT = {
+  "Cardiovascular, Renal & Metabolic (CVRM)": "CVRM",
+  "Hematology (Non-Malignant)": "Hematology",
+  "Inflammation / Autoimmune / MSK": "Inflammation / IAM",
+  "Neuroscience": "Neuroscience",
+  "Ophthalmology": "Ophthalmology",
+  "Respiratory": "Respiratory",
+};
+const TA_COLOR = {
+  "Cardiovascular, Renal & Metabolic (CVRM)": "#4A90D9",
+  "Hematology (Non-Malignant)":               "#E85C7A",
+  "Inflammation / Autoimmune / MSK":          "#F0B42A",
+  "Neuroscience":                             "#9B6DD6",
+  "Ophthalmology":                            "#3DBF84",
+  "Respiratory":                              "#5BC8C8",
+};
+
+// ── BUILD NODES & LINKS ───────────────────────────────────────────────────────
+const nodes = [], links = [];
+const taMap = {}, specMap = {};
+
+nodes.push({ id: "hub", name: "GenoSphere™", type: "hub", ta: null });
+
+RAW.forEach((d, i) => {
+  const [ta, spec, cond, count] = d;
+  const taKey  = `ta__${ta}`;
+  const specKey = `spec__${ta}__${spec}`;
+  const condKey = `cond__${i}`;
+
+  if (!taMap[ta]) {
+    taMap[ta] = taKey;
+    nodes.push({ id: taKey, name: TA_SHORT[ta] || ta, fullName: ta, type: "ta", ta });
+    links.push({ source: "hub", target: taKey, type: "hub-ta" });
+  }
+  if (!specMap[specKey]) {
+    specMap[specKey] = true;
+    nodes.push({ id: specKey, name: spec, type: "specialty", ta });
+    links.push({ source: taKey, target: specKey, type: "ta-spec" });
+  }
+  nodes.push({
+    id: condKey, name: cond, type: "condition", ta, specialty: spec, count
+  });
+  links.push({ source: specKey, target: condKey, type: "spec-cond" });
+});
+
+// ── SCALES ───────────────────────────────────────────────────────────────────
+const maxCount = d3.max(RAW, d => d[3]);
+const rScale = d3.scaleSqrt().domain([0, maxCount]).range([5, 22]);
+function nodeR(d) {
+  if (d.type === "hub")       return 30;
+  if (d.type === "ta")        return 20;
+  if (d.type === "specialty") return 12;
+  return Math.max(6, rScale(d.count || 0));
+}
+function nodeColor(d) {
+  if (d.type === "hub") return "#3DBF84";
+  const c = TA_COLOR[d.ta] || "#6B85B0";
+  if (d.type === "ta")       return c;
+  if (d.type === "specialty") return d3.color(c).copy({opacity: 0.7}).formatRgb();
+  return c;
+}
+function fmt(n) {
+  if (!n || n === 0) return "< 10";
+  if (n >= 1000) return (n/1000).toFixed(n >= 10000 ? 0 : 1) + "K";
+  return n.toLocaleString();
+}
+
+// ── SVG ──────────────────────────────────────────────────────────────────────
+const container = document.getElementById("chart");
+const W = container.clientWidth, H = container.clientHeight;
+const svg = d3.select("#chart").append("svg");
+const g   = svg.append("g");
+
+const zoom = d3.zoom().scaleExtent([0.25, 4]).on("zoom", e => g.attr("transform", e.transform));
+svg.call(zoom).call(zoom.translateTo, W/2, H/2);
+
+// Glow filter
+const defs = svg.append("defs");
+const glow = defs.append("filter").attr("id","glow").attr("x","-50%").attr("y","-50%").attr("width","200%").attr("height","200%");
+glow.append("feGaussianBlur").attr("stdDeviation","4").attr("result","blur");
+const feMerge = glow.append("feMerge");
+feMerge.append("feMergeNode").attr("in","blur");
+feMerge.append("feMergeNode").attr("in","SourceGraphic");
+
+// Hub glow
+const hubGlow = defs.append("filter").attr("id","hubglow").attr("x","-100%").attr("y","-100%").attr("width","300%").attr("height","300%");
+hubGlow.append("feGaussianBlur").attr("stdDeviation","10").attr("result","blur");
+const fm2 = hubGlow.append("feMerge");
+fm2.append("feMergeNode").attr("in","blur");
+fm2.append("feMergeNode").attr("in","SourceGraphic");
+
+// ── SIMULATION ───────────────────────────────────────────────────────────────
+const RING = { hub: 0, ta: 140, specialty: 280, condition: 440 };
+const CHARGE = { hub: -800, ta: -400, specialty: -180, condition: -60 };
+const LINK_DIST = { "hub-ta": 140, "ta-spec": 140, "spec-cond": 160 };
+
+const simulation = d3.forceSimulation(nodes)
+  .force("link", d3.forceLink(links).id(d => d.id)
+    .distance(l => LINK_DIST[l.type] || 120).strength(0.7))
+  .force("charge", d3.forceManyBody().strength(d => CHARGE[d.type] || -80))
+  .force("center", d3.forceCenter(W/2, H/2))
+  .force("collide", d3.forceCollide(d => nodeR(d) + 6).strength(0.8))
+  .force("radial", d3.forceRadial(d => RING[d.type] || 440, W/2, H/2).strength(d => {
+    if (d.type === "hub") return 1;
+    if (d.type === "ta")  return 0.6;
+    return 0.15;
+  }))
+  .alphaDecay(0.028);
+
+// ── DRAW LINKS ───────────────────────────────────────────────────────────────
+const linkG = g.append("g").attr("class","links");
+const link = linkG.selectAll("line").data(links).join("line")
+  .attr("stroke", l => {
+    const src = typeof l.source === 'object' ? l.source : nodes.find(n=>n.id===l.source);
+    return src ? (TA_COLOR[src.ta] || "#ffffff") : "#ffffff";
+  })
+  .attr("stroke-opacity", l => l.type === "hub-ta" ? 0.5 : l.type === "ta-spec" ? 0.35 : 0.2)
+  .attr("stroke-width", l => l.type === "hub-ta" ? 2 : l.type === "ta-spec" ? 1.5 : 1);
+
+// ── DRAW NODES ───────────────────────────────────────────────────────────────
+const nodeG = g.append("g").attr("class","nodes");
+const nodeEl = nodeG.selectAll("g").data(nodes).join("g")
+  .attr("class", d => `node node-${d.type}`)
+  .style("cursor", "pointer")
+  .call(d3.drag()
+    .on("start", (e,d) => { if(!e.active) simulation.alphaTarget(0.3).restart(); d.fx=d.x; d.fy=d.y; })
+    .on("drag",  (e,d) => { d.fx=e.x; d.fy=e.y; })
+    .on("end",   (e,d) => { if(!e.active) simulation.alphaTarget(0); d.fx=null; d.fy=null; }));
+
+// Circles
+nodeEl.append("circle")
+  .attr("r", d => nodeR(d))
+  .attr("fill", d => {
+    if (d.type === "hub") return "#3DBF84";
+    if (d.type === "ta")  return TA_COLOR[d.ta] || "#888";
+    if (d.type === "specialty") return "rgba(255,255,255,0.08)";
+    return TA_COLOR[d.ta] || "#888";
+  })
+  .attr("stroke", d => {
+    if (d.type === "specialty") return TA_COLOR[d.ta] || "#888";
+    return "rgba(255,255,255,0.15)";
+  })
+  .attr("stroke-width", d => d.type === "specialty" ? 1.5 : 1)
+  .attr("fill-opacity", d => d.type === "condition" ? 0.85 : 1)
+  .attr("filter", d => d.type === "hub" ? "url(#hubglow)" : d.type === "ta" ? "url(#glow)" : null);
+
+// Labels for hub + TA
+nodeEl.filter(d => d.type === "hub").append("text")
+  .text("GenoSphere™").attr("text-anchor","middle").attr("dy","0.35em")
+  .attr("font-size","9px").attr("font-weight","900").attr("fill","#0F1A2E").attr("pointer-events","none");
+
+nodeEl.filter(d => d.type === "ta").append("text")
+  .text(d => d.name).attr("text-anchor","middle").attr("dy","0.35em")
+  .attr("font-size","8px").attr("font-weight","800").attr("fill","#fff").attr("pointer-events","none");
+
+// Specialty label (below circle)
+nodeEl.filter(d => d.type === "specialty").append("text")
+  .text(d => d.name).attr("text-anchor","middle").attr("dy", d => nodeR(d) + 11)
+  .attr("font-size","8px").attr("font-weight","700").attr("fill","#8AAAD0").attr("pointer-events","none");
+
+// Condition count badge
+nodeEl.filter(d => d.type === "condition" && d.count > 0).append("text")
+  .text(d => fmt(d.count)).attr("text-anchor","middle").attr("dy","0.35em")
+  .attr("font-size", d => d.count >= 50000 ? "7px" : "6.5px")
+  .attr("font-weight","800").attr("fill","#fff").attr("pointer-events","none");
+
+// Condition name below circle
+nodeEl.filter(d => d.type === "condition").append("text")
+  .text(d => d.name.length > 22 ? d.name.slice(0,20)+"…" : d.name)
+  .attr("text-anchor","middle").attr("dy", d => nodeR(d) + 10)
+  .attr("font-size","7px").attr("fill","rgba(200,215,240,0.7)").attr("pointer-events","none")
+  .attr("class","cond-label");
+
+// ── TOOLTIP ──────────────────────────────────────────────────────────────────
+const tooltip = document.getElementById("tooltip");
+nodeEl.on("mouseenter", (e, d) => {
+  const c = TA_COLOR[d.ta] || "#6B85B0";
+  let html = "";
+  if (d.type === "hub") {
+    html = `<div class="tt-name">GenoSphere™ Disease Landscape</div>
+      <div class="tt-label">${nodes.filter(n=>n.type==='condition').length} conditions across ${Object.keys(taMap).length} therapeutic areas</div>`;
+  } else if (d.type === "ta") {
+    const condCount = nodes.filter(n=>n.type==='condition'&&n.ta===d.ta).length;
+    const total = d3.sum(nodes.filter(n=>n.type==='condition'&&n.ta===d.ta), n=>n.count||0);
+    html = `<div class="tt-area" style="color:${c}">${TA_SHORT[d.ta]||d.ta}</div>
+      <div class="tt-name">${d.fullName||d.name}</div>
+      <div class="tt-count" style="color:${c}">${fmt(total)}</div>
+      <div class="tt-label">total patients · ${condCount} conditions</div>`;
+  } else if (d.type === "specialty") {
+    const condCount = nodes.filter(n=>n.type==='condition'&&n.ta===d.ta&&n.specialty===d.name).length;
+    const total = d3.sum(nodes.filter(n=>n.type==='condition'&&n.ta===d.ta&&n.specialty===d.name), n=>n.count||0);
+    html = `<div class="tt-area" style="color:${c}">${TA_SHORT[d.ta]||d.ta}</div>
+      <div class="tt-name">${d.name}</div>
+      <div class="tt-count" style="color:${c}">${fmt(total)}</div>
+      <div class="tt-label">total patients · ${condCount} conditions</div>`;
+  } else {
+    const pct = Math.round((d.count/maxCount)*100);
+    html = `<div class="tt-area" style="color:${c}">${TA_SHORT[d.ta]||d.ta} · ${d.specialty}</div>
+      <div class="tt-name">${d.name}</div>
+      <div class="tt-count" style="color:${c}">${(d.count||0).toLocaleString()}</div>
+      <div class="tt-label">participants in GenoSphere</div>
+      <div class="tt-bar-wrap"><div class="tt-bar" style="width:${pct}%;background:${c}"></div></div>`;
+  }
+  tooltip.innerHTML = html;
+  tooltip.style.display = "block";
+}).on("mousemove", e => {
+  const x = e.clientX + 14, y = e.clientY - 10;
+  tooltip.style.left = (x + 290 > window.innerWidth ? x - 310 : x) + "px";
+  tooltip.style.top  = (y + 160 > window.innerHeight ? y - 160 : y) + "px";
+}).on("mouseleave", () => { tooltip.style.display = "none"; });
+
+// ── CLICK HIGHLIGHT ───────────────────────────────────────────────────────────
+let activeNode = null;
+nodeEl.on("click", (e, d) => {
+  e.stopPropagation();
+  if (activeNode === d.id) { activeNode = null; clearHighlight(); return; }
+  activeNode = d.id;
+  highlightNode(d);
+});
+svg.on("click", () => { activeNode = null; clearHighlight(); });
+
+function getConnected(d) {
+  const ids = new Set([d.id]);
+  if (d.type === "hub") nodes.forEach(n => ids.add(n.id));
+  else if (d.type === "ta") {
+    nodes.filter(n => n.ta === d.ta).forEach(n => ids.add(n.id));
+    ids.add("hub");
+  } else if (d.type === "specialty") {
+    nodes.filter(n => (n.ta === d.ta && (n.type === "ta" || n.type === "hub")) ||
+      (n.specialty === d.name && n.ta === d.ta)).forEach(n => ids.add(n.id));
+    ids.add("hub");
+  } else {
+    ids.add(`ta__${d.ta}`);
+    ids.add(`spec__${d.ta}__${d.specialty}`);
+    ids.add("hub");
+  }
+  return ids;
+}
+function highlightNode(d) {
+  const connected = getConnected(d);
+  nodeEl.selectAll("circle").attr("fill-opacity", n => connected.has(n.id) ? (n.type==="condition"?0.95:1) : 0.12)
+    .attr("stroke-opacity", n => connected.has(n.id) ? 1 : 0.1);
+  nodeEl.selectAll("text").attr("opacity", n => connected.has(n.id) ? 1 : 0.1);
+  link.attr("stroke-opacity", l => {
+    const s = l.source.id, t = l.target.id;
+    return connected.has(s) && connected.has(t) ? (l.type==="hub-ta"?0.7:l.type==="ta-spec"?0.5:0.3) : 0.04;
+  });
+}
+function clearHighlight() {
+  nodeEl.selectAll("circle").attr("fill-opacity", d => d.type==="condition" ? 0.85 : 1).attr("stroke-opacity", 1);
+  nodeEl.selectAll("text").attr("opacity", 1);
+  link.attr("stroke-opacity", l => l.type==="hub-ta"?0.5:l.type==="ta-spec"?0.35:0.2);
+}
+
+// ── TA FILTER BUTTONS ─────────────────────────────────────────────────────────
+const taList = Object.keys(taMap);
+let activeTA = null;
+const filterBar = document.getElementById("ta-filters");
+taList.forEach(ta => {
+  const c = TA_COLOR[ta];
+  const btn = document.createElement("button");
+  btn.className = "ta-btn active";
+  btn.textContent = TA_SHORT[ta] || ta;
+  btn.style.borderColor = c; btn.style.color = c;
+  btn.dataset.ta = ta;
+  btn.onclick = () => filterByTA(ta, btn, c);
+  filterBar.appendChild(btn);
+});
+function filterByTA(ta, btn, c) {
+  if (activeTA === ta) {
+    activeTA = null;
+    document.querySelectorAll(".ta-btn").forEach(b => { b.classList.add("active"); b.classList.remove("dimmed"); b.style.background="transparent"; });
+    clearHighlight(); updateStats(nodes.filter(n=>n.type==="condition"));
+    return;
+  }
+  activeTA = ta;
+  document.querySelectorAll(".ta-btn").forEach(b => {
+    if (b.dataset.ta === ta) { b.classList.add("active"); b.classList.remove("dimmed"); b.style.background = c + "22"; }
+    else { b.classList.remove("active"); b.classList.add("dimmed"); b.style.background = "transparent"; }
+  });
+  const taNode = nodes.find(n => n.id === `ta__${ta}`);
+  if (taNode) highlightNode(taNode);
+  updateStats(nodes.filter(n=>n.type==="condition"&&n.ta===ta));
+}
+
+// ── SEARCH ───────────────────────────────────────────────────────────────────
+document.getElementById("search-input").addEventListener("input", function() {
+  const q = this.value.toLowerCase().trim();
+  if (!q) { clearHighlight(); updateStats(nodes.filter(n=>n.type==="condition")); return; }
+  const matches = new Set();
+  nodes.forEach(n => {
+    if (n.name.toLowerCase().includes(q)) {
+      matches.add(n.id);
+      if (n.type === "condition") {
+        matches.add(`ta__${n.ta}`); matches.add(`spec__${n.ta}__${n.specialty}`); matches.add("hub");
+      }
+    }
+  });
+  nodeEl.selectAll("circle").attr("fill-opacity", n => matches.has(n.id) ? (n.type==="condition"?0.95:1) : 0.1)
+    .attr("stroke-opacity", n => matches.has(n.id) ? 1 : 0.05);
+  nodeEl.selectAll("text").attr("opacity", n => matches.has(n.id) ? 1 : 0.05);
+  link.attr("stroke-opacity", l => matches.has(l.source.id) && matches.has(l.target.id) ? 0.4 : 0.03);
+  const matched = nodes.filter(n=>n.type==="condition"&&matches.has(n.id));
+  updateStats(matched);
+});
+
+function resetAll() {
+  activeTA = null; activeNode = null;
+  document.getElementById("search-input").value = "";
+  document.querySelectorAll(".ta-btn").forEach(b => { b.classList.add("active"); b.classList.remove("dimmed"); b.style.background="transparent"; });
+  clearHighlight(); updateStats(nodes.filter(n=>n.type==="condition"));
+}
+
+// ── STATS PANEL ──────────────────────────────────────────────────────────────
+function updateStats(condNodes) {
+  const total = d3.sum(condNodes, d => d.count || 0);
+  const panel = document.getElementById("stats-panel");
+  panel.innerHTML = `
+    <div class="stat-row"><span class="stat-n" style="color:#3DBF84">${total.toLocaleString()}</span><span class="stat-l">total patients</span></div>
+    <div class="stat-row"><span class="stat-n" style="color:#8AAAD0">${condNodes.length}</span><span class="stat-l">conditions</span></div>`;
+}
+updateStats(nodes.filter(n=>n.type==="condition"));
+
+// ── SIMULATION TICK ──────────────────────────────────────────────────────────
+simulation.on("tick", () => {
+  link.attr("x1",l=>l.source.x).attr("y1",l=>l.source.y).attr("x2",l=>l.target.x).attr("y2",l=>l.target.y);
+  nodeEl.attr("transform", d => `translate(${d.x},${d.y})`);
+});
+
+// Initial zoom to fit
+setTimeout(() => {
+  svg.call(zoom.transform, d3.zoomIdentity.translate(W/2, H/2).scale(0.85));
+}, 100);
+</script>
+</body>
+</html>
