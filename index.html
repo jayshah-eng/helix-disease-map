@@ -845,13 +845,32 @@ function applyVis(animated) {
 }
 applyVis(false);
 
-function expandTA(ta)   { expandedTAs.add(ta);    applyVis(true); updateBtns(); updateStats(); }
+function zoomTo(x, y, scale) {
+  svg.transition().duration(600).ease(d3.easeCubicInOut)
+    .call(zoom.transform, d3.zoomIdentity.translate(W/2 - scale*x, H/2 - scale*y).scale(scale));
+}
+function zoomReset() {
+  svg.transition().duration(500).ease(d3.easeCubicInOut).call(zoom.transform, initTransform);
+}
+
+function expandTA(ta) {
+  expandedTAs.add(ta); applyVis(true); updateBtns(); updateStats();
+  const n=nodes.find(n=>n.id===`ta__${ta}`); if(n) zoomTo(n.x, n.y, 1.8);
+}
 function collapseTA(ta) {
   nodes.filter(n=>n.type==="specialty"&&n.ta===ta).forEach(n=>expandedSpecs.delete(n.id));
   expandedTAs.delete(ta); applyVis(true); updateBtns(); updateStats();
+  if(expandedTAs.size===0) zoomReset();
+  else { const n=nodes.find(n=>n.id===`ta__${ta}`); if(n) zoomTo(n.x,n.y,1.8); }
 }
-function expandSpec(sn)   { expandedSpecs.add(sn.id);    applyVis(true); updateStats(); }
-function collapseSpec(sn) { expandedSpecs.delete(sn.id); applyVis(true); updateStats(); }
+function expandSpec(sn) {
+  expandedSpecs.add(sn.id); applyVis(true); updateStats();
+  zoomTo(sn.x, sn.y, 2.4);
+}
+function collapseSpec(sn) {
+  expandedSpecs.delete(sn.id); applyVis(true); updateStats();
+  const taNode=nodes.find(n=>n.id===`ta__${sn.ta}`); if(taNode) zoomTo(taNode.x,taNode.y,1.8);
+}
 
 // Node clicks
 nodeEl.on("click",(e,d)=>{
@@ -860,7 +879,9 @@ nodeEl.on("click",(e,d)=>{
   else if (d.type==="specialty"&&expandedTAs.has(d.ta)) { expandedSpecs.has(d.id)?collapseSpec(d):expandSpec(d); }
 });
 svg.on("click",()=>{
-  [...expandedTAs].forEach(ta=>collapseTA(ta));
+  expandedTAs.forEach(ta=>nodes.filter(n=>n.type==="specialty"&&n.ta===ta).forEach(n=>expandedSpecs.delete(n.id)));
+  expandedTAs.clear(); expandedSpecs.clear();
+  applyVis(true); updateBtns(); updateStats(); zoomReset();
   document.getElementById("search-input").value="";
 });
 
@@ -921,7 +942,9 @@ document.getElementById("search-input").addEventListener("input",function(){
 });
 
 function resetAll() {
-  [...expandedTAs].forEach(ta=>collapseTA(ta));
+  expandedTAs.forEach(ta=>nodes.filter(n=>n.type==="specialty"&&n.ta===ta).forEach(n=>expandedSpecs.delete(n.id)));
+  expandedTAs.clear(); expandedSpecs.clear();
+  applyVis(true); updateBtns(); updateStats(); zoomReset();
   document.getElementById("search-input").value="";
 }
 function updateStats() {
