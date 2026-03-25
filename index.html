@@ -716,10 +716,10 @@ nodeEl.filter(d=>d.type==="hub").append("text")
   .text("GenoSphere™").attr("text-anchor","middle").attr("dy","0.35em")
   .attr("font-size","8px").attr("font-weight","800").attr("fill","#fff").attr("pointer-events","none");
 
-// TA labels
+// TA labels — below node
 nodeEl.filter(d=>d.type==="ta").append("text")
-  .text(d=>d.name).attr("text-anchor","middle").attr("dy","0.35em")
-  .attr("font-size","7.5px").attr("font-weight","800").attr("fill","#fff").attr("pointer-events","none");
+  .text(d=>d.name).attr("text-anchor","middle").attr("dy",d=>nodeR(d)+13)
+  .attr("font-size","8.5px").attr("font-weight","800").attr("fill","#000").attr("pointer-events","none");
 
 // Specialty labels
 nodeEl.filter(d=>d.type==="specialty").append("text")
