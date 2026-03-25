@@ -207,7 +207,7 @@ nav {
   border: 1px solid var(--border); border-radius: 14px;
   overflow: hidden; box-shadow: var(--shadow); position: relative;
 }
-#chart { width: 100%; height: 900px; }
+#chart { width: 100%; height: 1000px; }
 #chart svg { width: 100%; height: 100%; background: #FAFAF8; }
 
 /* Stats overlay */
@@ -665,16 +665,16 @@ svg.call(zoom);
 const gridG = g.append("g").attr("opacity","0.03");
 for(let r=80;r<600;r+=80) gridG.append("circle").attr("cx",W/2).attr("cy",H/2).attr("r",r).attr("fill","none").attr("stroke","#1C2B47").attr("stroke-width","1");
 
-const RING = {hub:0,ta:165,specialty:330,condition:510};
+const RING = {hub:0,ta:165,specialty:330,condition:560};
 const simulation = d3.forceSimulation(nodes)
   .force("link",d3.forceLink(links).id(d=>d.id)
-    .distance(l=>l.type==="hub-ta"?165:l.type==="ta-spec"?165:180).strength(0.55))
-  .force("charge",d3.forceManyBody().strength(d=>d.type==="hub"?-1000:d.type==="ta"?-550:d.type==="specialty"?-260:-90))
+    .distance(l=>l.type==="hub-ta"?165:l.type==="ta-spec"?165:200).strength(0.5))
+  .force("charge",d3.forceManyBody().strength(d=>d.type==="hub"?-1000:d.type==="ta"?-550:d.type==="specialty"?-260:-130))
   .force("center",d3.forceCenter(W/2,H/2))
-  .force("collide",d3.forceCollide(d=>nodeR(d)+10).strength(0.9))
-  .force("radial",d3.forceRadial(d=>RING[d.type]||510,W/2,H/2)
-    .strength(d=>d.type==="hub"?1:d.type==="ta"?0.7:0.18))
-  .alphaDecay(0.022);
+  .force("collide",d3.forceCollide(d=>nodeR(d)+(d.type==="condition"?18:10)).strength(0.9))
+  .force("radial",d3.forceRadial(d=>RING[d.type]||560,W/2,H/2)
+    .strength(d=>d.type==="hub"?1:d.type==="ta"?0.7:0.2))
+  .alphaDecay(0.02);
 
 // Links
 const linkEl = g.append("g").selectAll("line").data(links).join("line")
@@ -735,8 +735,8 @@ nodeEl.filter(d=>d.type==="condition"&&d.count>0).append("text")
 // Condition name below
 nodeEl.filter(d=>d.type==="condition").append("text")
   .text(d=>d.name.length>22?d.name.slice(0,20)+"…":d.name)
-  .attr("text-anchor","middle").attr("dy",d=>nodeR(d)+10)
-  .attr("font-size","7px").attr("fill","#6B7A8D").attr("pointer-events","none").attr("class","cond-label");
+  .attr("text-anchor","middle").attr("dy",d=>nodeR(d)+11)
+  .attr("font-size","7.5px").attr("font-weight","700").attr("fill","#1C2B47").attr("pointer-events","none").attr("class","cond-label");
 
 // Tooltip
 const tooltip = document.getElementById("tooltip");
