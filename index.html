@@ -207,7 +207,7 @@ nav {
   border: 1px solid var(--border); border-radius: 14px;
   overflow: hidden; box-shadow: var(--shadow); position: relative;
 }
-#chart { width: 100%; height: 780px; }
+#chart { width: 100%; height: 900px; }
 #chart svg { width: 100%; height: 100%; background: #FAFAF8; }
 
 /* Stats overlay */
@@ -606,12 +606,12 @@ const TA_SHORT = {
   "Respiratory":                                  "Respiratory",
 };
 const TA_COLOR = {
-  "Cardiovascular, Renal & Metabolic (CVRM)":    "#4A7EC4",
-  "Hematology (Non-Malignant)":                   "#D96B5A",
-  "Inflammation / Autoimmune / Musculoskeletal":  "#C9922A",
-  "Neuroscience":                                 "#6B5A9E",
-  "Ophthalmology":                                "#4A8B5C",
-  "Respiratory":                                  "#3A9494",
+  "Cardiovascular, Renal & Metabolic (CVRM)":    "#2B65B5",
+  "Hematology (Non-Malignant)":                   "#C04030",
+  "Inflammation / Autoimmune / Musculoskeletal":  "#B87520",
+  "Neuroscience":                                 "#5B489A",
+  "Ophthalmology":                                "#27784A",
+  "Respiratory":                                  "#1A7D7D",
 };
 
 const nodes = [], links = [];
@@ -665,16 +665,16 @@ svg.call(zoom);
 const gridG = g.append("g").attr("opacity","0.03");
 for(let r=80;r<600;r+=80) gridG.append("circle").attr("cx",W/2).attr("cy",H/2).attr("r",r).attr("fill","none").attr("stroke","#1C2B47").attr("stroke-width","1");
 
-const RING = {hub:0,ta:130,specialty:265,condition:420};
+const RING = {hub:0,ta:165,specialty:330,condition:510};
 const simulation = d3.forceSimulation(nodes)
   .force("link",d3.forceLink(links).id(d=>d.id)
-    .distance(l=>l.type==="hub-ta"?130:l.type==="ta-spec"?135:155).strength(0.65))
-  .force("charge",d3.forceManyBody().strength(d=>d.type==="hub"?-700:d.type==="ta"?-350:d.type==="specialty"?-160:-55))
+    .distance(l=>l.type==="hub-ta"?165:l.type==="ta-spec"?165:180).strength(0.55))
+  .force("charge",d3.forceManyBody().strength(d=>d.type==="hub"?-1000:d.type==="ta"?-550:d.type==="specialty"?-260:-90))
   .force("center",d3.forceCenter(W/2,H/2))
-  .force("collide",d3.forceCollide(d=>nodeR(d)+5).strength(0.85))
-  .force("radial",d3.forceRadial(d=>RING[d.type]||420,W/2,H/2)
-    .strength(d=>d.type==="hub"?1:d.type==="ta"?0.55:0.12))
-  .alphaDecay(0.026);
+  .force("collide",d3.forceCollide(d=>nodeR(d)+10).strength(0.9))
+  .force("radial",d3.forceRadial(d=>RING[d.type]||510,W/2,H/2)
+    .strength(d=>d.type==="hub"?1:d.type==="ta"?0.7:0.18))
+  .alphaDecay(0.022);
 
 // Links
 const linkEl = g.append("g").selectAll("line").data(links).join("line")
@@ -682,8 +682,8 @@ const linkEl = g.append("g").selectAll("line").data(links).join("line")
     const s=typeof l.source==="object"?l.source:nodes.find(n=>n.id===l.source);
     return s?(TA_COLOR[s.ta]||"#9AA8BE"):"#9AA8BE";
   })
-  .attr("stroke-opacity",l=>l.type==="hub-ta"?0.4:l.type==="ta-spec"?0.25:0.15)
-  .attr("stroke-width",l=>l.type==="hub-ta"?2:l.type==="ta-spec"?1.5:1);
+  .attr("stroke-opacity",l=>l.type==="hub-ta"?0.6:l.type==="ta-spec"?0.4:0.25)
+  .attr("stroke-width",l=>l.type==="hub-ta"?2.5:l.type==="ta-spec"?1.8:1.2);
 
 // Nodes
 const nodeEl = g.append("g").selectAll("g").data(nodes).join("g")
@@ -708,7 +708,7 @@ nodeEl.append("circle")
     return"rgba(255,255,255,0.6)";
   })
   .attr("stroke-width",d=>d.type==="specialty"?1.5:1)
-  .attr("fill-opacity",d=>d.type==="condition"?0.82:1)
+  .attr("fill-opacity",1)
   .attr("filter",d=>d.type==="hub"||d.type==="ta"?"drop-shadow(0 2px 4px rgba(0,0,0,0.12))":null);
 
 // Hub label
@@ -797,9 +797,9 @@ function hlNode(d){
   linkEl.attr("stroke-opacity",l=>{const s=l.source.id,t=l.target.id;return c.has(s)&&c.has(t)?(l.type==="hub-ta"?0.6:l.type==="ta-spec"?0.45:0.3):0.02;});
 }
 function clearHL(){
-  nodeEl.selectAll("circle").attr("fill-opacity",d=>d.type==="condition"?0.82:1).attr("stroke-opacity",1);
+  nodeEl.selectAll("circle").attr("fill-opacity",1).attr("stroke-opacity",1);
   nodeEl.selectAll("text").attr("opacity",1);
-  linkEl.attr("stroke-opacity",l=>l.type==="hub-ta"?0.4:l.type==="ta-spec"?0.25:0.15);
+  linkEl.attr("stroke-opacity",l=>l.type==="hub-ta"?0.6:l.type==="ta-spec"?0.4:0.25);
 }
 
 // TA filter buttons
