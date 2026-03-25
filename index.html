@@ -482,7 +482,7 @@ footer {
   <div class="explorer-header">
     <div>
       <h2>Disease Landscape Explorer</h2>
-      <p>Click any therapeutic area to filter · Hover nodes for patient counts · Scroll to zoom · Drag to pan</p>
+      <p>Click a therapeutic area to expand · Click a specialty to reveal conditions · Scroll to zoom · Drag to pan</p>
     </div>
   </div>
 
@@ -503,7 +503,7 @@ footer {
       <div class="leg-row"><div class="leg-dot" style="width:12px;height:12px;background:#9AA8BE"></div><div class="leg-text">1K – 10K</div></div>
       <div class="leg-row"><div class="leg-dot" style="width:16px;height:16px;background:#9AA8BE"></div><div class="leg-text">10K – 50K</div></div>
       <div class="leg-row"><div class="leg-dot" style="width:20px;height:20px;background:#9AA8BE"></div><div class="leg-text">&gt; 50K</div></div>
-      <div class="leg-hint">Scroll · Drag · Click to explore</div>
+      <div class="leg-hint">Click TA → Specialty → Conditions</div>
     </div>
     <div class="map-stats" id="map-stats"></div>
     <div class="zoom-ctrl">
@@ -771,14 +771,16 @@ nodeEl.on("mouseenter",(e,d)=>{
       <div class="tt-clabel">${nodes.filter(n=>n.type==="condition").length} conditions · ${Object.keys(taMap).length} therapeutic areas</div>`;
   } else if(d.type==="ta"){
     const conds=nodes.filter(n=>n.type==="condition"&&n.ta===d.ta);
+    const hint=expandedTAs.has(d.ta)?"Click to collapse":"Click to expand";
     html=`<div class="tt-area" style="color:${c}">${TA_SHORT[d.ta]||d.ta}</div>
       <div class="tt-name">${d.fullName||d.name}</div>
-      <div class="tt-clabel">${conds.length} conditions</div>`;
+      <div class="tt-clabel">${conds.length} conditions · ${hint}</div>`;
   } else if(d.type==="specialty"){
     const conds=nodes.filter(n=>n.type==="condition"&&n.ta===d.ta&&n.specialty===d.name);
+    const hint=expandedSpecs.has(d.id)?"Click to collapse":"Click to expand";
     html=`<div class="tt-area" style="color:${c}">${TA_SHORT[d.ta]||d.ta}</div>
       <div class="tt-name">${d.name}</div>
-      <div class="tt-clabel">${conds.length} conditions</div>`;
+      <div class="tt-clabel">${conds.length} conditions · ${hint}</div>`;
   } else {
     const pct=Math.round(((d.count||0)/maxCount)*100);
     html=`<div class="tt-area" style="color:${c}">${TA_SHORT[d.ta]||d.ta} · ${d.specialty}</div>
@@ -794,97 +796,154 @@ nodeEl.on("mouseenter",(e,d)=>{
   tooltip.style.top =(y+160>window.innerHeight?y-155:y)+"px";
 }).on("mouseleave",()=>{tooltip.style.display="none";});
 
-// Click highlight
-let activeNode=null;
+// ─── PROGRESSIVE DISCLOSURE ──────────────────────────────────────────────
+const expandedTAs   = new Set();
+const expandedSpecs = new Set();
+
+// Fix all specialty + condition nodes at center so they start hidden
+nodes.forEach(d => {
+  if (d.type==="specialty"||d.type==="condition") { d.x=W/2; d.y=H/2; d.fx=W/2; d.fy=H/2; }
+});
+
+function isVis(d) {
+  if (d.type==="hub"||d.type==="ta") return true;
+  if (d.type==="specialty") return expandedTAs.has(d.ta);
+  if (d.type==="condition") return expandedSpecs.has(`spec__${d.ta}__${d.specialty}`);
+  return false;
+}
+function linkVis(l) {
+  if (l.type==="hub-ta") return true;
+  const s=typeof l.source==="object"?l.source:nodes.find(n=>n.id===l.source);
+  const t=typeof l.target==="object"?l.target:nodes.find(n=>n.id===l.target);
+  if (!s||!t) return false;
+  if (l.type==="ta-spec") return expandedTAs.has(t.ta);
+  if (l.type==="spec-cond") return expandedSpecs.has(s.id);
+  return false;
+}
+function applyVis(animated) {
+  (animated?nodeEl.transition().duration(380):nodeEl)
+    .attr("opacity",d=>isVis(d)?1:0)
+    .style("pointer-events",d=>isVis(d)?"all":"none");
+  (animated?linkEl.transition().duration(380):linkEl)
+    .attr("stroke-opacity",l=>linkVis(l)?(l.type==="hub-ta"?0.6:l.type==="ta-spec"?0.4:0.25):0);
+}
+applyVis(false);
+
+function expandTA(ta) {
+  const taNode=nodes.find(n=>n.id===`ta__${ta}`);
+  nodes.filter(n=>n.type==="specialty"&&n.ta===ta).forEach(n=>{
+    n.x=taNode?taNode.x:W/2; n.y=taNode?taNode.y:H/2; n.fx=null; n.fy=null;
+  });
+  expandedTAs.add(ta);
+  simulation.alpha(0.5).restart();
+  applyVis(true); updateBtns(); updateStats();
+}
+function collapseTA(ta) {
+  const taNode=nodes.find(n=>n.id===`ta__${ta}`);
+  nodes.filter(n=>n.type==="specialty"&&n.ta===ta).forEach(n=>{
+    expandedSpecs.delete(n.id);
+    nodes.filter(c=>c.type==="condition"&&c.ta===ta&&c.specialty===n.name)
+      .forEach(c=>{c.fx=n.x;c.fy=n.y;});
+    n.fx=taNode?taNode.x:W/2; n.fy=taNode?taNode.y:H/2;
+  });
+  expandedTAs.delete(ta);
+  simulation.alpha(0.3).restart();
+  applyVis(true); updateBtns(); updateStats();
+}
+function expandSpec(sn) {
+  nodes.filter(c=>c.type==="condition"&&c.ta===sn.ta&&c.specialty===sn.name)
+    .forEach(c=>{c.x=sn.x;c.y=sn.y;c.fx=null;c.fy=null;});
+  expandedSpecs.add(sn.id);
+  simulation.alpha(0.4).restart();
+  applyVis(true); updateStats();
+}
+function collapseSpec(sn) {
+  nodes.filter(c=>c.type==="condition"&&c.ta===sn.ta&&c.specialty===sn.name)
+    .forEach(c=>{c.fx=sn.x;c.fy=sn.y;});
+  expandedSpecs.delete(sn.id);
+  simulation.alpha(0.2).restart();
+  applyVis(true); updateStats();
+}
+
+// Node clicks
 nodeEl.on("click",(e,d)=>{
   e.stopPropagation();
-  if(activeNode===d.id){activeNode=null;clearHL();return;}
-  activeNode=d.id; hlNode(d);
+  if (d.type==="ta") { expandedTAs.has(d.ta)?collapseTA(d.ta):expandTA(d.ta); }
+  else if (d.type==="specialty"&&expandedTAs.has(d.ta)) { expandedSpecs.has(d.id)?collapseSpec(d):expandSpec(d); }
 });
-svg.on("click",()=>{activeNode=null;clearHL();});
+svg.on("click",()=>{
+  [...expandedTAs].forEach(ta=>collapseTA(ta));
+  document.getElementById("search-input").value="";
+});
 
-function getConn(d){
-  const ids=new Set([d.id]);
-  if(d.type==="hub")nodes.forEach(n=>ids.add(n.id));
-  else if(d.type==="ta"){nodes.filter(n=>n.ta===d.ta).forEach(n=>ids.add(n.id));ids.add("hub");}
-  else if(d.type==="specialty"){
-    nodes.filter(n=>(n.ta===d.ta&&(n.type==="ta"||n.type==="hub"))||(n.specialty===d.name&&n.ta===d.ta)).forEach(n=>ids.add(n.id));
-    ids.add("hub");
-  } else {ids.add(`ta__${d.ta}`);ids.add(`spec__${d.ta}__${d.specialty}`);ids.add("hub");}
-  return ids;
-}
-function hlNode(d){
-  const c=getConn(d);
-  nodeEl.selectAll("circle").attr("fill-opacity",n=>c.has(n.id)?(n.type==="condition"?0.9:1):0.07).attr("stroke-opacity",n=>c.has(n.id)?1:0.05);
-  nodeEl.selectAll("text").attr("opacity",n=>c.has(n.id)?1:0.05);
-  linkEl.attr("stroke-opacity",l=>{const s=l.source.id,t=l.target.id;return c.has(s)&&c.has(t)?(l.type==="hub-ta"?0.6:l.type==="ta-spec"?0.45:0.3):0.02;});
-}
-function clearHL(){
-  nodeEl.selectAll("circle").attr("fill-opacity",1).attr("stroke-opacity",1);
-  nodeEl.selectAll("text").attr("opacity",1);
-  linkEl.attr("stroke-opacity",l=>l.type==="hub-ta"?0.6:l.type==="ta-spec"?0.4:0.25);
-}
-
-// TA filter buttons
+// TA filter buttons — click to expand/collapse
 const taList=Object.keys(taMap);
-let activeTA=null;
 const filterBar=document.getElementById("ta-filters");
 taList.forEach(ta=>{
   const c=TA_COLOR[ta];
   const btn=document.createElement("button");
-  btn.className="ta-btn active";
+  btn.className="ta-btn";
   btn.textContent=TA_SHORT[ta]||ta;
   btn.style.borderColor=c; btn.style.color=c;
   btn.dataset.ta=ta;
-  btn.onclick=()=>filterTA(ta,btn,c);
+  btn.onclick=()=>{ expandedTAs.has(ta)?collapseTA(ta):expandTA(ta); };
   filterBar.appendChild(btn);
 });
-function filterTA(ta,btn,c){
-  if(activeTA===ta){
-    activeTA=null;
-    document.querySelectorAll(".ta-btn").forEach(b=>{b.classList.add("active");b.classList.remove("dimmed");b.style.background="transparent";});
-    clearHL(); updateStats(nodes.filter(n=>n.type==="condition")); return;
-  }
-  activeTA=ta;
+function updateBtns() {
   document.querySelectorAll(".ta-btn").forEach(b=>{
-    if(b.dataset.ta===ta){b.classList.add("active");b.classList.remove("dimmed");b.style.background=c+"18";}
-    else{b.classList.remove("active");b.classList.add("dimmed");b.style.background="transparent";}
+    const expanded=expandedTAs.has(b.dataset.ta);
+    b.style.background=expanded?TA_COLOR[b.dataset.ta]+"22":"transparent";
+    b.style.fontWeight=expanded?"800":"600";
   });
-  const tn=nodes.find(n=>n.id===`ta__${ta}`);
-  if(tn)hlNode(tn);
-  updateStats(nodes.filter(n=>n.type==="condition"&&n.ta===ta));
 }
 
-// Search
+// Search — auto-expands matching branches
 document.getElementById("search-input").addEventListener("input",function(){
   const q=this.value.toLowerCase().trim();
-  if(!q){clearHL();updateStats(nodes.filter(n=>n.type==="condition"));return;}
-  const m=new Set();
+  if (!q) { applyVis(true); return; }
+  const matchTAs=new Set(), matchSpecs=new Set(), matchIds=new Set();
   nodes.forEach(n=>{
-    if(n.name.toLowerCase().includes(q)){
-      m.add(n.id);
-      if(n.type==="condition"){m.add(`ta__${n.ta}`);m.add(`spec__${n.ta}__${n.specialty}`);m.add("hub");}
+    if (n.name.toLowerCase().includes(q)) {
+      matchIds.add(n.id);
+      if (n.type==="condition") { matchTAs.add(n.ta); matchSpecs.add(`spec__${n.ta}__${n.specialty}`); matchIds.add(`ta__${n.ta}`); matchIds.add(`spec__${n.ta}__${n.specialty}`); matchIds.add("hub"); }
+      if (n.type==="specialty") { matchTAs.add(n.ta); matchIds.add(`ta__${n.ta}`); matchIds.add("hub"); }
+      if (n.type==="ta") { matchTAs.add(n.ta); matchIds.add("hub"); }
     }
   });
-  nodeEl.selectAll("circle").attr("fill-opacity",n=>m.has(n.id)?(n.type==="condition"?0.9:1):0.06).attr("stroke-opacity",n=>m.has(n.id)?1:0.04);
-  nodeEl.selectAll("text").attr("opacity",n=>m.has(n.id)?1:0.04);
-  linkEl.attr("stroke-opacity",l=>m.has(l.source.id)&&m.has(l.target.id)?0.4:0.02);
-  updateStats(nodes.filter(n=>n.type==="condition"&&m.has(n.id)));
+  matchTAs.forEach(ta=>{
+    if (!expandedTAs.has(ta)) {
+      const taNode=nodes.find(n=>n.id===`ta__${ta}`);
+      nodes.filter(n=>n.type==="specialty"&&n.ta===ta).forEach(n=>{ n.x=taNode?taNode.x:W/2; n.y=taNode?taNode.y:H/2; n.fx=null; n.fy=null; });
+      expandedTAs.add(ta);
+    }
+  });
+  matchSpecs.forEach(sid=>{
+    if (!expandedSpecs.has(sid)) {
+      const sn=nodes.find(n=>n.id===sid);
+      if (sn) { nodes.filter(c=>c.type==="condition"&&c.ta===sn.ta&&c.specialty===sn.name).forEach(c=>{c.x=sn.x;c.y=sn.y;c.fx=null;c.fy=null;}); expandedSpecs.add(sid); }
+    }
+  });
+  simulation.alpha(0.4).restart();
+  updateBtns();
+  nodeEl.transition().duration(300)
+    .attr("opacity",n=>!isVis(n)?0:matchIds.has(n.id)?1:0.12)
+    .style("pointer-events",d=>isVis(d)?"all":"none");
+  linkEl.transition().duration(300)
+    .attr("stroke-opacity",l=>!linkVis(l)?0:matchIds.has(l.source.id)&&matchIds.has(l.target.id)?0.5:0.04);
+  updateStats();
 });
 
-function resetAll(){
-  activeTA=null; activeNode=null;
+function resetAll() {
+  [...expandedTAs].forEach(ta=>collapseTA(ta));
   document.getElementById("search-input").value="";
-  document.querySelectorAll(".ta-btn").forEach(b=>{b.classList.add("active");b.classList.remove("dimmed");b.style.background="transparent";});
-  clearHL(); updateStats(nodes.filter(n=>n.type==="condition"));
 }
-
-function updateStats(conds){
+function updateStats() {
+  const total=nodes.filter(n=>n.type==="condition").length;
   document.getElementById("map-stats").innerHTML=
     `<div class="ms-num">&gt;400K</div><div class="ms-label">Total Records as of Q1 2026</div>
-     <div class="ms-num" style="margin-top:8px">${conds.length}</div><div class="ms-label">Conditions</div>`;
+     <div class="ms-num" style="margin-top:8px">${total}</div><div class="ms-label">Conditions</div>`;
 }
-updateStats(nodes.filter(n=>n.type==="condition"));
+updateStats();
 
 simulation.on("tick",()=>{
   linkEl.attr("x1",l=>l.source.x).attr("y1",l=>l.source.y).attr("x2",l=>l.target.x).attr("y2",l=>l.target.y);
