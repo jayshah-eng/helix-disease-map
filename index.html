@@ -987,7 +987,9 @@ document.getElementById("search-input").addEventListener("input",function(){
   if (!q) { applyVis(true); zoomReset(); return; }
   const matchTAs=new Set(), matchSpecs=new Set(), matchIds=new Set();
   nodes.forEach(n=>{
-    if (n.name.toLowerCase().includes(q)) {
+    // Match against name; also check fullName for TA nodes (short name vs full name)
+    const haystack=(n.name+(n.fullName?(' '+n.fullName):'')).toLowerCase();
+    if (haystack.includes(q)) {
       matchIds.add(n.id);
       if (n.type==="condition") { matchTAs.add(n.ta); matchSpecs.add(`spec__${n.ta}__${n.specialty}`); matchIds.add(`ta__${n.ta}`); matchIds.add(`spec__${n.ta}__${n.specialty}`); matchIds.add("hub"); }
       if (n.type==="specialty") { matchTAs.add(n.ta); matchIds.add(`ta__${n.ta}`); matchIds.add("hub"); }
@@ -1005,7 +1007,7 @@ document.getElementById("search-input").addEventListener("input",function(){
     .attr("opacity",l=>!linkVis(l)?0:matchIds.has(l.source.id)&&matchIds.has(l.target.id)?0.5:0.04);
   updateStats();
   // Zoom: condition matches → go to highest-count one; TA/specialty → go to that node
-  const directMatches=nodes.filter(n=>n.name.toLowerCase().includes(q)&&isVis(n));
+  const directMatches=nodes.filter(n=>(n.name+(n.fullName?(' '+n.fullName):'')).toLowerCase().includes(q)&&isVis(n));
   if (!directMatches.length) return;
   const condMatches=directMatches.filter(n=>n.type==="condition");
   const target=condMatches.length
