@@ -247,6 +247,24 @@ nav {
 .leg-text  { font-size: 11px; color: var(--muted); }
 .leg-hint  { font-size: 10px; color: #aaa; margin-top: 8px; border-top: 1px solid var(--border); padding-top: 7px; }
 
+/* Zoom controls */
+.zoom-ctrl {
+  position: absolute; top: 16px; right: 16px;
+  display: flex; flex-direction: column; gap: 4px; z-index: 10;
+}
+.zoom-btn {
+  width: 32px; height: 32px; border-radius: 7px;
+  background: rgba(255,255,255,0.95); border: 1px solid var(--border);
+  box-shadow: var(--shadow); cursor: pointer;
+  font-size: 18px; font-weight: 400; color: var(--navy);
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.12s;
+}
+.zoom-btn:hover { background: var(--green-l); color: var(--green); }
+.zoom-reset {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.3px;
+}
+
 /* ── CTA SECTION ──────────────────────────────────────────────────────────── */
 .cta-section {
   background: var(--navy); padding: 64px 40px; text-align: center;
@@ -488,6 +506,11 @@ footer {
       <div class="leg-hint">Scroll · Drag · Click to explore</div>
     </div>
     <div class="map-stats" id="map-stats"></div>
+    <div class="zoom-ctrl">
+      <button class="zoom-btn" id="zoom-in"  title="Zoom in">+</button>
+      <button class="zoom-btn" id="zoom-out" title="Zoom out">−</button>
+      <button class="zoom-btn zoom-reset" id="zoom-reset" title="Reset view">⊙</button>
+    </div>
   </div>
 </section>
 
@@ -867,9 +890,12 @@ simulation.on("tick",()=>{
   linkEl.attr("x1",l=>l.source.x).attr("y1",l=>l.source.y).attr("x2",l=>l.target.x).attr("y2",l=>l.target.y);
   nodeEl.attr("transform",d=>`translate(${d.x},${d.y})`);
 });
-setTimeout(()=>{
-  svg.call(zoom.transform,d3.zoomIdentity.translate(W/2-(W*0.88/2),H/2-(H*0.88/2)).scale(0.88));
-},200);
+const initTransform = d3.zoomIdentity.translate(W/2-(W*0.88/2),H/2-(H*0.88/2)).scale(0.88);
+setTimeout(()=>{ svg.call(zoom.transform, initTransform); }, 200);
+
+document.getElementById("zoom-in").onclick    = ()=>svg.transition().duration(300).call(zoom.scaleBy, 1.4);
+document.getElementById("zoom-out").onclick   = ()=>svg.transition().duration(300).call(zoom.scaleBy, 1/1.4);
+document.getElementById("zoom-reset").onclick = ()=>svg.transition().duration(400).call(zoom.transform, initTransform);
 </script>
 </body>
 </html>
