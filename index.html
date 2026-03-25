@@ -688,16 +688,34 @@ svg.call(zoom);
 const gridG = g.append("g").attr("opacity","0.03");
 for(let r=80;r<600;r+=80) gridG.append("circle").attr("cx",W/2).attr("cy",H/2).attr("r",r).attr("fill","none").attr("stroke","#1C2B47").attr("stroke-width","1");
 
-const RING = {hub:0,ta:165,specialty:330,condition:560};
-const simulation = d3.forceSimulation(nodes)
-  .force("link",d3.forceLink(links).id(d=>d.id)
-    .distance(l=>l.type==="hub-ta"?165:l.type==="ta-spec"?165:200).strength(0.5))
-  .force("charge",d3.forceManyBody().strength(d=>d.type==="hub"?-1000:d.type==="ta"?-550:d.type==="specialty"?-260:-130))
-  .force("center",d3.forceCenter(W/2,H/2))
-  .force("collide",d3.forceCollide(d=>nodeR(d)+(d.type==="condition"?18:10)).strength(0.9))
-  .force("radial",d3.forceRadial(d=>RING[d.type]||560,W/2,H/2)
-    .strength(d=>d.type==="hub"?1:d.type==="ta"?0.7:0.2))
-  .alphaDecay(0.02);
+// ─── STATIC RADIAL LAYOUT (no simulation) ───────────────────────────────
+// Build D3 hierarchy to calculate clean radial positions
+const hierData = {
+  id:"hub", type:"hub",
+  children: Object.keys(taMap).map(ta => ({
+    id:taMap[ta], type:"ta", ta,
+    children: nodes.filter(n=>n.type==="specialty"&&n.ta===ta).map(sn=>({
+      id:sn.id, type:"specialty", ta,
+      children: nodes.filter(n=>n.type==="condition"&&n.ta===ta&&n.specialty===sn.name)
+        .map(cn=>({id:cn.id,type:"condition"}))
+    }))
+  }))
+};
+const hier = d3.hierarchy(hierData);
+// Spread leaves evenly; parent angle = midpoint of its leaf range
+hier.leaves().forEach((leaf,i,arr)=>{ leaf._a = -Math.PI/2 + (i+0.5)/arr.length * 2*Math.PI; });
+hier.eachAfter(d=>{ if(d.children){ const as=d.leaves().map(l=>l._a); d._a=(Math.min(...as)+Math.max(...as))/2; }});
+// Depth → radius
+const DR = [0, 150, 300, 480];
+hier.each(d=>{
+  const r=DR[d.depth]??480, angle=d._a||0;
+  const nd=nodes.find(n=>n.id===d.data.id);
+  if(nd){ nd.x=W/2+r*Math.cos(angle); nd.y=H/2+r*Math.sin(angle); nd._angle=angle; }
+});
+// Hub stays at center
+const hubNd=nodes.find(n=>n.type==="hub"); hubNd.x=W/2; hubNd.y=H/2;
+// Resolve link source/target string refs to objects
+links.forEach(l=>{ l.source=nodes.find(n=>n.id===l.source)||l.source; l.target=nodes.find(n=>n.id===l.target)||l.target; });
 
 // Links
 const linkEl = g.append("g").selectAll("line").data(links).join("line")
@@ -708,13 +726,9 @@ const linkEl = g.append("g").selectAll("line").data(links).join("line")
   .attr("stroke-opacity",l=>l.type==="hub-ta"?0.6:l.type==="ta-spec"?0.4:0.25)
   .attr("stroke-width",l=>l.type==="hub-ta"?2.5:l.type==="ta-spec"?1.8:1.2);
 
-// Nodes
+// Nodes (static — no drag)
 const nodeEl = g.append("g").selectAll("g").data(nodes).join("g")
-  .style("cursor","pointer")
-  .call(d3.drag()
-    .on("start",(e,d)=>{if(!e.active)simulation.alphaTarget(0.3).restart();d.fx=d.x;d.fy=d.y;})
-    .on("drag", (e,d)=>{d.fx=e.x;d.fy=e.y;})
-    .on("end",  (e,d)=>{if(!e.active)simulation.alphaTarget(0);d.fx=null;d.fy=null;}));
+  .style("cursor",d=>d.type==="hub"?"default":"pointer");
 
 // Node circles
 nodeEl.append("circle")
@@ -800,10 +814,6 @@ nodeEl.on("mouseenter",(e,d)=>{
 const expandedTAs   = new Set();
 const expandedSpecs = new Set();
 
-// Fix all specialty + condition nodes at center so they start hidden
-nodes.forEach(d => {
-  if (d.type==="specialty"||d.type==="condition") { d.x=W/2; d.y=H/2; d.fx=W/2; d.fy=H/2; }
-});
 
 function isVis(d) {
   if (d.type==="hub"||d.type==="ta") return true;
@@ -829,41 +839,13 @@ function applyVis(animated) {
 }
 applyVis(false);
 
-function expandTA(ta) {
-  const taNode=nodes.find(n=>n.id===`ta__${ta}`);
-  nodes.filter(n=>n.type==="specialty"&&n.ta===ta).forEach(n=>{
-    n.x=taNode?taNode.x:W/2; n.y=taNode?taNode.y:H/2; n.fx=null; n.fy=null;
-  });
-  expandedTAs.add(ta);
-  simulation.alpha(0.5).restart();
-  applyVis(true); updateBtns(); updateStats();
-}
+function expandTA(ta)   { expandedTAs.add(ta);    applyVis(true); updateBtns(); updateStats(); }
 function collapseTA(ta) {
-  const taNode=nodes.find(n=>n.id===`ta__${ta}`);
-  nodes.filter(n=>n.type==="specialty"&&n.ta===ta).forEach(n=>{
-    expandedSpecs.delete(n.id);
-    nodes.filter(c=>c.type==="condition"&&c.ta===ta&&c.specialty===n.name)
-      .forEach(c=>{c.fx=n.x;c.fy=n.y;});
-    n.fx=taNode?taNode.x:W/2; n.fy=taNode?taNode.y:H/2;
-  });
-  expandedTAs.delete(ta);
-  simulation.alpha(0.3).restart();
-  applyVis(true); updateBtns(); updateStats();
+  nodes.filter(n=>n.type==="specialty"&&n.ta===ta).forEach(n=>expandedSpecs.delete(n.id));
+  expandedTAs.delete(ta); applyVis(true); updateBtns(); updateStats();
 }
-function expandSpec(sn) {
-  nodes.filter(c=>c.type==="condition"&&c.ta===sn.ta&&c.specialty===sn.name)
-    .forEach(c=>{c.x=sn.x;c.y=sn.y;c.fx=null;c.fy=null;});
-  expandedSpecs.add(sn.id);
-  simulation.alpha(0.4).restart();
-  applyVis(true); updateStats();
-}
-function collapseSpec(sn) {
-  nodes.filter(c=>c.type==="condition"&&c.ta===sn.ta&&c.specialty===sn.name)
-    .forEach(c=>{c.fx=sn.x;c.fy=sn.y;});
-  expandedSpecs.delete(sn.id);
-  simulation.alpha(0.2).restart();
-  applyVis(true); updateStats();
-}
+function expandSpec(sn)   { expandedSpecs.add(sn.id);    applyVis(true); updateStats(); }
+function collapseSpec(sn) { expandedSpecs.delete(sn.id); applyVis(true); updateStats(); }
 
 // Node clicks
 nodeEl.on("click",(e,d)=>{
@@ -923,7 +905,6 @@ document.getElementById("search-input").addEventListener("input",function(){
       if (sn) { nodes.filter(c=>c.type==="condition"&&c.ta===sn.ta&&c.specialty===sn.name).forEach(c=>{c.x=sn.x;c.y=sn.y;c.fx=null;c.fy=null;}); expandedSpecs.add(sid); }
     }
   });
-  simulation.alpha(0.4).restart();
   updateBtns();
   nodeEl.transition().duration(300)
     .attr("opacity",n=>!isVis(n)?0:matchIds.has(n.id)?1:0.12)
@@ -945,10 +926,9 @@ function updateStats() {
 }
 updateStats();
 
-simulation.on("tick",()=>{
-  linkEl.attr("x1",l=>l.source.x).attr("y1",l=>l.source.y).attr("x2",l=>l.target.x).attr("y2",l=>l.target.y);
-  nodeEl.attr("transform",d=>`translate(${d.x},${d.y})`);
-});
+// Static render — positions never change
+linkEl.attr("x1",l=>l.source.x).attr("y1",l=>l.source.y).attr("x2",l=>l.target.x).attr("y2",l=>l.target.y);
+nodeEl.attr("transform",d=>`translate(${d.x},${d.y})`);
 const initTransform = d3.zoomIdentity.translate(W/2-(W*0.88/2),H/2-(H*0.88/2)).scale(0.88);
 setTimeout(()=>{ svg.call(zoom.transform, initTransform); }, 200);
 
