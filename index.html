@@ -307,6 +307,57 @@ footer {
   .features-grid { grid-template-columns: 1fr; }
   nav .nav-links { display: none; }
 }
+
+/* ── TUTORIAL MODAL ───────────────────────────────────────────────────────── */
+#tut-overlay {
+  position: fixed; inset: 0; z-index: 9000;
+  background: rgba(28,43,71,0.55); backdrop-filter: blur(3px);
+  display: flex; align-items: center; justify-content: center;
+  animation: tutFadeIn 0.25s ease;
+}
+@keyframes tutFadeIn { from { opacity:0 } to { opacity:1 } }
+#tut-card {
+  background: #fff; border-radius: 18px; width: 460px; max-width: calc(100vw - 32px);
+  box-shadow: 0 20px 60px rgba(28,43,71,0.22); overflow: hidden;
+  animation: tutSlideUp 0.28s cubic-bezier(.22,.68,0,1.2);
+}
+@keyframes tutSlideUp { from { transform:translateY(28px); opacity:0 } to { transform:translateY(0); opacity:1 } }
+#tut-icon-bar {
+  height: 110px; display: flex; align-items: center; justify-content: center;
+  font-size: 52px; transition: background 0.35s;
+}
+#tut-body { padding: 22px 28px 10px; }
+#tut-body h2 { font-size: 16px; font-weight: 800; color: var(--navy); margin-bottom: 8px; line-height: 1.35; }
+#tut-body p  { font-size: 13px; color: var(--muted); line-height: 1.65; }
+#tut-tip {
+  margin: 12px 28px 0; padding: 10px 14px; border-radius: 8px;
+  background: var(--bg); font-size: 12px; color: var(--text);
+  line-height: 1.55; border-left: 3px solid var(--green);
+}
+#tut-footer {
+  padding: 16px 28px 20px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+#tut-dots { display: flex; gap: 6px; align-items: center; justify-content: center; }
+.tut-dot {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--border);
+  transition: all 0.2s; cursor: pointer;
+}
+.tut-dot.active { background: var(--navy); width: 18px; border-radius: 4px; }
+#tut-nav { display: flex; align-items: center; justify-content: space-between; }
+.tut-btn {
+  padding: 8px 20px; border-radius: 8px; font-size: 13px; font-weight: 600;
+  cursor: pointer; font-family: inherit; border: 1.5px solid var(--border);
+  background: transparent; color: var(--muted); transition: all 0.15s;
+}
+.tut-btn:hover { border-color: var(--navy); color: var(--navy); }
+.tut-btn.primary {
+  background: var(--navy); color: #fff; border-color: var(--navy);
+}
+.tut-btn.primary:hover { background: var(--navy2); }
+#tut-no-show { display: flex; align-items: center; gap: 7px; justify-content: center; }
+#tut-no-show label { font-size: 12px; color: var(--muted); cursor: pointer; user-select: none; }
+#tut-no-show input { cursor: pointer; accent-color: var(--navy); width: 14px; height: 14px; }
 </style>
 </head>
 <body>
@@ -1068,6 +1119,96 @@ setTimeout(()=>{ svg.call(zoom.transform, initTransform); }, 200);
 document.getElementById("zoom-in").onclick    = ()=>svg.transition().duration(300).call(zoom.scaleBy, 1.4);
 document.getElementById("zoom-out").onclick   = ()=>svg.transition().duration(300).call(zoom.scaleBy, 1/1.4);
 document.getElementById("zoom-reset").onclick = ()=>svg.transition().duration(400).call(zoom.transform, initTransform);
+
+// ── TUTORIAL ────────────────────────────────────────────────────────────────
+const TUT_KEY = "helix-map-tutorial-seen";
+const STEPS = [
+  {
+    icon: "🧬", bg: "#1C2B47",
+    title: "Welcome to the GenoSphere™ Disease Landscape",
+    body:  "This interactive map visualizes the breadth of genetic conditions covered by Helix's GenoSphere™ platform — organized by therapeutic area, specialty, and individual condition.",
+    tip:   "The map contains " + nodes.filter(n=>n.type==="condition").length + " conditions across " + Object.keys(taMap).length + " therapeutic areas."
+  },
+  {
+    icon: "🔵", bg: "#2B65B5",
+    title: "Click a Therapeutic Area to Expand",
+    body:  "The 6 colored nodes represent major therapeutic areas (CVRM, Neuroscience, Inflammation, etc.). Click any node to expand it and reveal the specialties within.",
+    tip:   "Click a second time to collapse it back. Use the filter buttons above the map to jump straight to a specific area."
+  },
+  {
+    icon: "🩺", bg: "#4A8B5C",
+    title: "Drill Down to Individual Conditions",
+    body:  "After expanding a therapeutic area, click a specialty node to reveal the individual disease conditions within it. The map auto-zooms to keep things in view.",
+    tip:   "Click the background at any time to collapse everything and return to the overview."
+  },
+  {
+    icon: "⭕", bg: "#C9922A",
+    title: "Node Size = Number of Records",
+    body:  "Each condition node is sized proportionally to the number of records for that condition in GenoSphere™. Larger nodes = more records.",
+    tip:   "Hover over any node to see the exact record count, therapeutic area, and specialty in the tooltip."
+  },
+  {
+    icon: "🔎", bg: "#6B5A9E",
+    title: "Search to Navigate Instantly",
+    body:  "Type any condition, specialty, or therapeutic area into the search bar. The map will auto-expand the relevant branch and zoom directly to the match.",
+    tip:   "If multiple conditions share the same name, use the ‹ › arrows that appear to cycle through each one."
+  }
+];
+
+let tutStep = 0;
+function tutRender() {
+  const s = STEPS[tutStep];
+  document.getElementById("tut-icon-bar").style.background = s.bg + "18";
+  document.getElementById("tut-icon-bar").textContent = s.icon;
+  document.getElementById("tut-title").textContent = s.title;
+  document.getElementById("tut-desc").textContent  = s.body;
+  document.getElementById("tut-tip").textContent   = s.tip;
+  document.querySelectorAll(".tut-dot").forEach((d,i)=>d.classList.toggle("active",i===tutStep));
+  const isLast = tutStep === STEPS.length - 1;
+  const nextBtn = document.getElementById("tut-next");
+  nextBtn.textContent = isLast ? "Got it" : "Next →";
+  nextBtn.className   = "tut-btn primary";
+  document.getElementById("tut-prev").style.visibility = tutStep === 0 ? "hidden" : "visible";
+  document.getElementById("tut-no-show").style.display = isLast ? "flex" : "none";
+}
+function tutClose() {
+  if (document.getElementById("tut-nsa").checked) localStorage.setItem(TUT_KEY,"1");
+  const overlay = document.getElementById("tut-overlay");
+  overlay.style.animation = "tutFadeIn 0.2s ease reverse";
+  setTimeout(()=>overlay.remove(), 200);
+}
+function tutInit() {
+  if (localStorage.getItem(TUT_KEY)) return;
+  const overlay = document.createElement("div");
+  overlay.id = "tut-overlay";
+  overlay.innerHTML = `
+    <div id="tut-card">
+      <div id="tut-icon-bar"></div>
+      <div id="tut-body">
+        <h2 id="tut-title"></h2>
+        <p  id="tut-desc"></p>
+      </div>
+      <div id="tut-tip"></div>
+      <div id="tut-footer">
+        <div id="tut-no-show">
+          <input type="checkbox" id="tut-nsa">
+          <label for="tut-nsa">Don't show this again</label>
+        </div>
+        <div id="tut-nav">
+          <button class="tut-btn" id="tut-prev">← Back</button>
+          <div id="tut-dots">${STEPS.map((_,i)=>`<div class="tut-dot" data-i="${i}"></div>`).join("")}</div>
+          <button class="tut-btn primary" id="tut-next">Next →</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  tutRender();
+  document.getElementById("tut-next").onclick = ()=>{ if(tutStep<STEPS.length-1){tutStep++;tutRender();}else{tutClose();} };
+  document.getElementById("tut-prev").onclick = ()=>{ if(tutStep>0){tutStep--;tutRender();} };
+  document.querySelectorAll(".tut-dot").forEach(d=>d.onclick=()=>{tutStep=+d.dataset.i;tutRender();});
+  overlay.addEventListener("click",e=>{ if(e.target===overlay) tutClose(); });
+}
+tutInit();
 </script>
 </body>
 </html>
